@@ -206,30 +206,34 @@ Plans:
 
 **Wave 1:**
 
-- [ ] 06-01-PLAN.md — README.md: English ops runbook (12 sections, CLI reference for 6 scripts, 7 troubleshooting gotchas, phase links table)
+- [x] 06-01-PLAN.md — README.md: English ops runbook (12 sections, CLI reference for 6 scripts, 7 troubleshooting gotchas, phase links table) ✓ 2026-05-23
 
 **Wave 2** *(blocked on Wave 1 completion)*:
 
-- [ ] 06-02-PLAN.md — docs/README.ru.md: full Russian translation of README.md
+- [x] 06-02-PLAN.md — docs/README.ru.md: full Russian translation of README.md ✓ 2026-05-23
+
+**Phase 6 complete ✓**
 
 ### Phase 7: ASN Enrichment & Traffic Attribution
 
 **Goal:** Enrich existing traffic visibility tools (vpn-status.sh, watch-routes.py) with ISP/org attribution by mapping destination IPs to ASN + org name via Team Cymru bulk whois; ship a shared stdlib-only Python helper (asn-lookup.py) with a file-backed cache and graceful network-failure degradation; vpn-status.sh gains an ORG column + --summary aggregate view; watch-routes.py appends `| {org}` per line via a non-blocking background thread; deploy.sh extended with a new Stage 23 for the helper script
-**Requirements**: None mapped (v1 requirements complete; this is a visibility/UX enhancement phase). Per Phase 6 cross-cutting note, README.md and docs/README.ru.md must be updated to document the new ORG column, --summary flag, and --no-asn flag before Phase 7 is considered complete.
+**Requirements**: None mapped (v1 requirements complete; this is a visibility/UX enhancement phase).
 **Depends on:** Phase 6
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
 **Wave 1:**
 
-- [x] 07-01-PLAN.md — scripts/asn-lookup.py: shared stdlib Cymru bulk-whois client + atomic /tmp/vpn-asn-cache.json file cache; CLI contract is stdin one-IP-per-line → stdout single-line JSON dict {ip:{asn,org}}; graceful degradation on network failure (D-01, D-02, D-04, D-09)
+- [x] 07-01-PLAN.md — scripts/asn-lookup.py: shared stdlib Cymru bulk-whois client + atomic /tmp/vpn-asn-cache.json file cache; CLI contract is stdin one-IP-per-line → stdout single-line JSON dict {ip:{asn,org}}; graceful degradation on network failure (D-01, D-02, D-04, D-09) ✓ 2026-05-23
 
-**Wave 2** *(blocked on Wave 1 completion)*:
+**Wave 2:**
 
-- [ ] 07-02-PLAN.md — scripts/vpn-status.sh: add ORG column after DOMAIN (format `{org} (AS{asn})`) and --summary flag (ORG | VPN_COUNT | ISP_COUNT | TOTAL, top 20, ranked by TOTAL desc); seed asn-lookup.py with full pre-filter unique DST IP set (Pitfall 6); declare -A org_map (Pitfall 5); preserve all existing flags (D-03, D-06, D-07)
-- [ ] 07-03-PLAN.md — scripts/watch-routes.py: append ` | {org}` per line via background-thread subprocess call to /etc/asn-lookup.py (Pattern 3, threading.Lock-guarded _asn_cache, daemon thread, 5s timeout); add --no-asn opt-out flag; deploy.sh: add ASN_LOOKUP_* variables, preflight check, bump TOTAL_STAGES 23→24 (Pitfall 7), insert new Stage 23 deploy + renumber routing-activation to Stage 24, add PHASE 7 line to final summary (D-03, D-05, D-08)
+- [x] 07-02-PLAN.md — scripts/vpn-status.sh: ORG column after DOMAIN (format `{org} (AS{asn})`), --summary flag (ORG | VPN_COUNT | ISP_COUNT | TOTAL, top 20, TOTAL desc); declare -A org_map; all existing flags preserved (D-03, D-06, D-07) ✓ 2026-05-23
+- [x] 07-03-PLAN.md — scripts/watch-routes.py: ` | {org}` per line via background-thread subprocess + threading.Lock-guarded _asn_cache + --no-asn flag; deploy.sh: ASN_LOOKUP_* vars, preflight check, TOTAL_STAGES=24, Stage 23 deploy + Stage 24 routing activation (D-03, D-05, D-08) ✓ 2026-05-23
+
+**Phase 7 complete ✓** — hardware-verified 2026-05-23
 
 ---
 *Created: 2026-05-18*
-*Updated: 2026-05-23 — Phase 7 plans created (07-01 asn-lookup.py helper, 07-02 vpn-status.sh ORG+summary, 07-03 watch-routes.py threading + deploy Stage 23)*
+*Updated: 2026-05-23 — Phase 7 complete; all 7 phases done; hardware-verified on RPi 4 at 192.168.1.237*
