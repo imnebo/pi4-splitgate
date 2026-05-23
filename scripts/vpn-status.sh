@@ -10,6 +10,8 @@
 #                sudo vpn-status.sh --filter=steam
 #                sudo vpn-status.sh --device=192.168.1.50
 #                sudo vpn-status.sh --last=100 --filter=google --device=192.168.1.100
+#                sudo vpn-status.sh --summary
+#                sudo vpn-status.sh --summary --device=192.168.1.50 --via=vpn
 #
 # Decisions honored: D-11 (deployed to /etc/vpn-status.sh, run as sudo),
 #   D-12 (default 50 entries; columns: timestamp, src-ip, dst-ip, domain, VPN/ISP),
@@ -17,10 +19,15 @@
 #   D-14 (--filter: partial case-insensitive domain match),
 #   D-15 (--device: filter by source LAN device IP),
 #   D-16 (--last: override default entry count),
-#   D-17 (set -euo pipefail, source /etc/vpn-gateway.env, logger -t "vpn-status")
+#   D-17 (set -euo pipefail, source /etc/vpn-gateway.env, logger -t "vpn-status"),
+#   D-03 (Phase 7: single ASN lookup call seeded with all unique DST IPs),
+#   D-06 (Phase 7: ORG column after DOMAIN, format "{org} (AS{asn})" or "-"),
+#   D-07 (Phase 7: --summary flag, ORG|VPN_COUNT|ISP_COUNT|TOTAL, top 20 by TOTAL)
 #
 # Security: --filter and --device values are never passed to eval or sh -c; used
 # only as fixed-string grep patterns (T-04-07 mitigated).
+# T-07-06: dst_ip piped to python3 is restricted to digits+dot by grep -oP extraction.
+# T-07-07: malformed JSON from asn-lookup.py caught by python3 ValueError + || true.
 
 set -euo pipefail
 
@@ -42,6 +49,7 @@ LAST=50
 FILTER=""
 DEVICE=""
 VIA=""
+SUMMARY=false
 
 # ─── Argument Parsing ────────────────────────────────────────────────────────
 for arg in "$@"; do
@@ -68,9 +76,12 @@ for arg in "$@"; do
             fi
             VIA="${val^^}"
             ;;
+        --summary)
+            SUMMARY=true
+            ;;
         *)
             err "Unknown argument: '${arg}'"
-            err "Usage: vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp]"
+            err "Usage: vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]"
             exit 1
             ;;
     esac
@@ -162,9 +173,88 @@ while IFS= read -r line; do
 
 done <<< "${raw_lines}"
 
+# ─── ASN enrichment block (D-03, D-06) ───────────────────────────────────────
+# Collect unique DST IPs from ALL entries BEFORE output-time filter (Pitfall 6).
+# This ensures the org_map is populated for the full entry set, so both
+# regular mode and --summary mode have consistent data.
+declare -A org_map
+
+declare -A _seen_ips
+unique_ips=()
+for _entry in "${entries[@]}"; do
+    IFS='|' read -r _ts _src _dst _domain _dec <<< "${_entry}"
+    if [[ -z "${_seen_ips[${_dst}]+x}" ]]; then
+        _seen_ips["${_dst}"]=1
+        unique_ips+=("${_dst}")
+    fi
+done
+unset _seen_ips
+
+if [[ ${#unique_ips[@]} -gt 0 ]] && [[ -f /etc/asn-lookup.py ]] && command -v python3 >/dev/null 2>&1; then
+    asn_json=$(printf '%s\n' "${unique_ips[@]}" | python3 /etc/asn-lookup.py 2>/dev/null || true)
+    if [[ -n "${asn_json}" ]]; then
+        while IFS='=' read -r _ip _label; do
+            [[ -n "${_ip}" ]] && org_map["${_ip}"]="${_label}"
+        done < <(python3 -c "
+import json,sys
+d=json.loads(sys.stdin.read())
+for ip,v in d.items():
+    asn=v.get('asn','')
+    org=v.get('org','')
+    if asn and org:
+        print(ip+'='+org+' (AS'+asn+')')
+" <<< "${asn_json}" 2>/dev/null || true)
+    fi
+fi
+
+# ─── --summary mode (D-07) ───────────────────────────────────────────────────
+# When --summary is active, print aggregate ORG | VPN_COUNT | ISP_COUNT | TOTAL
+# table (top 20 by TOTAL desc) and exit. Filters (--filter, --device, --via)
+# compose with --summary so operators can scope the aggregate to a device or path.
+if [[ "${SUMMARY}" == "true" ]]; then
+    declare -A _vpn_cnt _isp_cnt
+    for _entry in "${entries[@]}"; do
+        IFS='|' read -r _ts _src _dst _domain _dec <<< "${_entry}"
+        # Apply same filters as regular mode
+        [[ -n "${FILTER}" && "${_entry}" != *"${FILTER}"* ]] && continue
+        [[ -n "${DEVICE}" && "${_src}" != "${DEVICE}" ]] && continue
+        if [[ -n "${VIA}" ]]; then
+            [[ "${VIA}" == "VPN" && "${_dec}" != "[VPN]" ]] && continue
+            [[ "${VIA}" == "ISP" && "${_dec}" != "[ISP]" ]] && continue
+        fi
+        _org_key="${org_map[${_dst}]:-unknown}"
+        if [[ "${_dec}" == "[VPN]" ]]; then
+            _vpn_cnt["${_org_key}"]=$(( ${_vpn_cnt["${_org_key}"]:-0} + 1 ))
+        else
+            _isp_cnt["${_org_key}"]=$(( ${_isp_cnt["${_org_key}"]:-0} + 1 ))
+        fi
+    done
+    printf "%-40s %-10s %-10s %s\n" "ORG" "VPN_COUNT" "ISP_COUNT" "TOTAL"
+    printf "%-40s %-10s %-10s %s\n" "----------------------------------------" "----------" "----------" "-----"
+    declare -A _all_orgs
+    for _k in "${!_vpn_cnt[@]}" "${!_isp_cnt[@]}"; do _all_orgs["$_k"]=1; done
+    {
+        for _k in "${!_all_orgs[@]}"; do
+            printf '%s\t%s\t%s\n' "${_k}" "${_vpn_cnt[${_k}]:-0}" "${_isp_cnt[${_k}]:-0}"
+        done
+    } | python3 -c "
+import sys
+rows=[]
+for line in sys.stdin:
+    p=line.rstrip('\n').split('\t')
+    if len(p)==3:
+        o,v,i=p[0],int(p[1]),int(p[2])
+        rows.append((o,v,i,v+i))
+rows.sort(key=lambda x:-x[3])
+for o,v,i,t in rows[:20]:
+    print(f'{o:<40} {v:<10} {i:<10} {t}')
+" 2>/dev/null || true
+    exit 0
+fi
+
 # ─── Output ───────────────────────────────────────────────────────────────────
-printf "%-20s %-18s %-18s %-40s %s\n" "TIMESTAMP" "SRC-IP" "DST-IP" "DOMAIN" "PATH"
-printf "%-20s %-18s %-18s %-40s %s\n" "--------------------" "------------------" "------------------" "----------------------------------------" "----"
+printf "%-20s %-18s %-18s %-40s %-30s %s\n" "TIMESTAMP" "SRC-IP" "DST-IP" "DOMAIN" "ORG" "PATH"
+printf "%-20s %-18s %-18s %-40s %-30s %s\n" "--------------------" "------------------" "------------------" "----------------------------------------" "------------------------------" "----"
 
 if [[ ${#entries[@]} -eq 0 ]]; then
     echo "(no connections matched — try --last=200 or remove filters)"
@@ -172,7 +262,8 @@ else
     for entry in "${entries[@]}"; do
         IFS='|' read -r ts src_ip dst_ip domain decision <<< "${entry}"
         if [[ -n "${VIA}" ]] && [[ "${decision}" != "${VIA}" ]]; then continue; fi
-        printf "%-20s %-18s %-18s %-40s %s\n" "${ts}" "${src_ip}" "${dst_ip}" "${domain}" "${decision}"
+        org="${org_map[${dst_ip}]:--}"
+        printf "%-20s %-18s %-18s %-40s %-30s %s\n" "${ts}" "${src_ip}" "${dst_ip}" "${domain}" "${org}" "${decision}"
     done
 fi
 

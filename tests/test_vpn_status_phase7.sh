@@ -17,9 +17,9 @@ if ! echo "" | grep -oP '' >/dev/null 2>&1; then _need_docker=true; fi
 if [[ "${_need_docker}" == "true" ]]; then
     if command -v docker >/dev/null 2>&1; then
         REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-        # Use debian:bookworm-slim — has bash 5+ AND GNU grep with -P support
+        # Use python:3.11-slim-bookworm — has bash 5+, GNU grep with -P, AND python3
         exec docker run --rm -v "${REPO_ROOT}:/repo" \
-            debian:bookworm-slim \
+            python:3.11-slim-bookworm \
             bash /repo/tests/test_vpn_status_phase7.sh
     fi
     echo "SKIP: bash 4+ and grep -P required; install docker to run on macOS" >&2
