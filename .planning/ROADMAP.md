@@ -241,6 +241,16 @@ Plans:
 **Depends on:** Phase 3 (update-vpn-routes), Phase 5 (white-list.txt)
 **Plans:** TBD
 
+### Phase 9: Operational Logging
+
+**Goal:** Centralized, human-readable logs for diagnosing system failures and routing issues; 14-day rotation
+**Requirements**: TBD
+**Depends on:** Phase 8
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 9 to break down)
+
 ---
 *Created: 2026-05-18*
 *Updated: 2026-05-23 — Phase 8 added: RU IP list exclusion filter*

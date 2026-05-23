@@ -105,6 +105,7 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 - Phase 5 added: Custom Route Exceptions — per-IP/domain overrides forcing traffic through ISP
 - Phase 6 added: Documentation — ops runbook (deploy, verify, rollback, add exceptions)
 - Phase 7 added: ASN Enrichment & Traffic Attribution
+- Phase 9 added: Operational Logging — centralized logs for diagnosing system failures; 14-day rotation
 
 ### Phase 4 Post-execution Fixes (applied after plans, discovered during live testing)
 
