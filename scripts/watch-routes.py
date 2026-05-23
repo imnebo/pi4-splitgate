@@ -3,20 +3,31 @@
 watch-routes.py — Real-time iptables log enricher for the RPi VPN gateway.
 
 Reads journalctl -f -k output, parses [VPN]/[ISP] LOG lines emitted by
-iptables FORWARD rules in routing.sh, performs cached reverse-DNS lookups,
-and prints enriched human-readable output.
+iptables FORWARD rules in routing.sh, performs cached reverse-DNS lookups
+and background ASN/org lookups via /etc/asn-lookup.py, and prints enriched
+human-readable output.
 
 Usage:
-    python3 scripts/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}]
+    python3 scripts/watch-routes.py [--src IP] [--no-dns] [--no-asn] [--tag {VPN,ISP,both}]
 
 Requirements: stdlib only — no pip dependencies.
+
+ASN enrichment: Each destination IP is looked up asynchronously via a daemon
+background thread that invokes /etc/asn-lookup.py as a subprocess. The live
+journalctl stream never blocks — if the lookup is still in flight the line
+is printed without the '| org' suffix, and the suffix appears on the next
+matching line for the same IP once the result is cached.
+
+Use --no-asn to disable all background ASN lookups (pure no-network mode).
 """
 
 import argparse
+import json
 import re
 import socket
 import subprocess
 import sys
+import threading
 
 # ─── DNS cache ────────────────────────────────────────────────────────────────
 # Maps IP string → hostname string.
@@ -24,6 +35,16 @@ import sys
 _dns_cache: dict[str, str] = {}
 
 socket.setdefaulttimeout(2.0)
+
+# ─── ASN cache ────────────────────────────────────────────────────────────────
+# Maps IP string → dict | None.
+#   None  : lookup in flight (sentinel — prevents duplicate thread spawn)
+#   {}    : lookup completed, no result — prevents re-querying this run
+#   {"asn": "...", "org": "..."}  : resolved successfully
+_asn_cache: dict = {}
+_asn_lock = threading.Lock()
+ASN_LOOKUP_PATH = "/etc/asn-lookup.py"
+ASN_SUBPROCESS_TIMEOUT = 5.0
 
 
 def resolve(ip: str, no_dns: bool) -> str:
@@ -43,6 +64,41 @@ def resolve(ip: str, no_dns: bool) -> str:
     return _dns_cache[ip]
 
 
+def _do_lookup(ip: str) -> None:
+    """Background worker: invoke asn-lookup.py subprocess and populate _asn_cache."""
+    try:
+        proc = subprocess.run(
+            ["python3", ASN_LOOKUP_PATH],
+            input=ip + "\n",
+            capture_output=True,
+            text=True,
+            timeout=ASN_SUBPROCESS_TIMEOUT,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            data = json.loads(proc.stdout)
+            result = data.get(ip) or {}
+        else:
+            result = {}
+    except Exception:
+        result = {}
+    with _asn_lock:
+        _asn_cache[ip] = result
+
+
+def lookup_async(ip: str) -> None:
+    """Trigger a background ASN lookup for *ip* if one is not already in progress.
+
+    Uses _asn_cache[ip] = None as an in-flight sentinel so that concurrent callers
+    do not spawn duplicate threads for the same address.
+    """
+    with _asn_lock:
+        if ip in _asn_cache:
+            return  # already in flight or resolved
+        _asn_cache[ip] = None  # sentinel: in flight
+    t = threading.Thread(target=_do_lookup, args=(ip,), daemon=True)
+    t.start()
+
+
 # ─── Log-line regex ───────────────────────────────────────────────────────────
 # Matches journalctl short-iso lines that contain [VPN] or [ISP] iptables LOG
 # prefixes, e.g.:
@@ -58,8 +114,14 @@ _LOG_RE = re.compile(
 )
 
 
-def format_line(ts: str, tag: str, src: str, dst: str, proto: str, dpt: str, no_dns: bool) -> str:
-    """Compose the output line from parsed fields."""
+def format_line(ts: str, tag: str, src: str, dst: str, proto: str, dpt: str, no_dns: bool, *, enable_asn: bool = True) -> str:
+    """Compose the output line from parsed fields.
+
+    If *enable_asn* is True (default), checks _asn_cache for the destination
+    IP and appends ' | {org}' when a resolved org is available. On a cache
+    miss, triggers a background lookup (lookup_async) so subsequent lines for
+    the same IP will carry the suffix once the daemon thread completes.
+    """
     hostname = resolve(dst, no_dns)
     if hostname != dst:
         # Truncate long hostnames to 40 chars for readability
@@ -69,6 +131,14 @@ def format_line(ts: str, tag: str, src: str, dst: str, proto: str, dpt: str, no_
         dst_part = dst
 
     port_part = f"{proto}:{dpt}" if dpt else proto
+
+    if enable_asn:
+        with _asn_lock:
+            cached = _asn_cache.get(dst, "__missing__")
+        if cached == "__missing__":
+            lookup_async(dst)
+        elif isinstance(cached, dict) and cached.get("org"):
+            return f"{ts} [{tag}] {src} → {dst_part} {port_part} | {cached['org']}"
     return f"{ts} [{tag}] {src} → {dst_part} {port_part}"
 
 
@@ -101,6 +171,12 @@ def parse_args() -> argparse.Namespace:
         choices=["VPN", "ISP", "both"],
         default="both",
         help="Filter by routing tag: VPN, ISP, or both (default: both).",
+    )
+    parser.add_argument(
+        "--no-asn",
+        action="store_true",
+        default=False,
+        help="Disable background ASN/org enrichment.",
     )
     return parser.parse_args()
 
@@ -147,7 +223,7 @@ def main() -> None:
             if args.src and src != args.src:
                 continue
 
-            output = format_line(ts, tag, src, dst, proto, dpt, args.no_dns)
+            output = format_line(ts, tag, src, dst, proto, dpt, args.no_dns, enable_asn=not args.no_asn)
             print(output, flush=True)
     except KeyboardInterrupt:
         pass
