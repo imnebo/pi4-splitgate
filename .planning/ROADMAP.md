@@ -251,6 +251,15 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 9 to break down)
 
+### Phase 10: Splitgate Ergonomics & Organization
+
+**Goal:** Consolidate all RPi app files under `/etc/splitgate/` (branded namespace); move Phase 9 logs to `/etc/splitgate/logs/`; add `/usr/local/bin/splitgate` dispatcher with subcommands: `status`, `watch`, `rollback`, `routing`, `update`
+**Depends on:** Phase 9
+**Plans:** TBD
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
 ---
 *Created: 2026-05-18*
-*Updated: 2026-05-23 — Phase 8 added: RU IP list exclusion filter*
+*Updated: 2026-05-23 — Phase 10 added: splitgate ergonomics & organization*
