@@ -217,13 +217,13 @@ Plans:
 **Goal:** Enrich existing traffic visibility tools (vpn-status.sh, watch-routes.py) with ISP/org attribution by mapping destination IPs to ASN + org name via Team Cymru bulk whois; ship a shared stdlib-only Python helper (asn-lookup.py) with a file-backed cache and graceful network-failure degradation; vpn-status.sh gains an ORG column + --summary aggregate view; watch-routes.py appends `| {org}` per line via a non-blocking background thread; deploy.sh extended with a new Stage 23 for the helper script
 **Requirements**: None mapped (v1 requirements complete; this is a visibility/UX enhancement phase). Per Phase 6 cross-cutting note, README.md and docs/README.ru.md must be updated to document the new ORG column, --summary flag, and --no-asn flag before Phase 7 is considered complete.
 **Depends on:** Phase 6
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
 **Wave 1:**
 
-- [ ] 07-01-PLAN.md — scripts/asn-lookup.py: shared stdlib Cymru bulk-whois client + atomic /tmp/vpn-asn-cache.json file cache; CLI contract is stdin one-IP-per-line → stdout single-line JSON dict {ip:{asn,org}}; graceful degradation on network failure (D-01, D-02, D-04, D-09)
+- [x] 07-01-PLAN.md — scripts/asn-lookup.py: shared stdlib Cymru bulk-whois client + atomic /tmp/vpn-asn-cache.json file cache; CLI contract is stdin one-IP-per-line → stdout single-line JSON dict {ip:{asn,org}}; graceful degradation on network failure (D-01, D-02, D-04, D-09)
 
 **Wave 2** *(blocked on Wave 1 completion)*:
 
