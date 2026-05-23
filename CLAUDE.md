@@ -26,6 +26,7 @@ Technology stack not yet documented. Will populate after codebase mapping or fir
 ## Conventions
 
 - **After every commit, immediately run `git push`.**
+- - **After completing any task, review `README.md` and `docs/README.ru.md`. If the work touched areas covered by either file — update them before closing the task. Keep both files in sync with each other.**
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
