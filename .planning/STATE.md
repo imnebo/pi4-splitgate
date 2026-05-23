@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 7 in progress
-stopped_at: Phase 7 plan 02 complete — vpn-status.sh ORG column + --summary
-last_updated: "2026-05-23T10:12:36Z"
+status: Phase 7 complete — all plans done
+stopped_at: Phase 7 plan 03 complete — ASN background-thread enrichment + deploy Stage 23
+last_updated: "2026-05-23T10:40:00Z"
 progress:
   total_phases: 7
-  completed_phases: 6
-  total_plans: 17
-  completed_plans: 17
-  percent: 94
+  completed_phases: 7
+  total_plans: 20
+  completed_plans: 20
+  percent: 100
 ---
 
 # State: RPi VPN Gateway
@@ -38,6 +38,7 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 | 4 — Traffic Logging & Visibility | ✓ Complete | 3/3 done | 100% |
 | 5 — Custom Route Exceptions | ✓ Complete | 2/2 done | 100% |
 | 6 — Documentation | ◆ Planned | 0/2 | 0% |
+| 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
 
 ## Requirements
 
@@ -69,6 +70,9 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 - Phase 7 D-06: ORG column placed after DOMAIN and before PATH; format "{org} (AS{asn})" or "-" for unknown
 - Phase 7 D-07: --summary aggregate mode top-20 by TOTAL desc; composes with --filter/--device/--via
 - Phase 7 test: Docker image python:3.11-slim-bookworm for macOS re-exec (debian:bookworm-slim lacks python3)
+- Phase 7 D-08: watch-routes.py _asn_cache uses None sentinel (in-flight) / {} (completed-no-result) / dict (resolved) — three states prevent duplicate thread spawns
+- Phase 7 D-09: enable_asn keyword-only param on format_line() — backward-compatible default True; --no-asn flag maps to enable_asn=False
+- Phase 7 D-10: deploy.sh Stage 23 deploys asn-lookup.py; Stage 24 activates routing.sh — routing activation remains last runtime stage
 
 ## Hardware Verified
 
@@ -79,9 +83,9 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 
 ## Last Session
 
-**Stopped at:** Phase 7 plan 02 complete — vpn-status.sh ORG column + --summary aggregate
-**Timestamp:** 2026-05-23T10:12:36Z
-**Resume:** Run /gsd:execute-phase 07 to continue with remaining phase 7 plans (if any)
+**Stopped at:** Phase 7 plan 03 complete — ASN background-thread enrichment in watch-routes.py + deploy.sh Stage 23
+**Timestamp:** 2026-05-23T10:40:00Z
+**Resume:** Phase 7 complete. All 7 phases done. No more plans to execute.
 
 ---
 *Initialized: 2026-05-18*
