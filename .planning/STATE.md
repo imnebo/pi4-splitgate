@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 6 complete
-stopped_at: Phase 6 planned — 2 plans in 2 waves
-last_updated: "2026-05-23T05:13:44.897Z"
+status: Phase 7 in progress
+stopped_at: Phase 7 plan 02 complete — vpn-status.sh ORG column + --summary
+last_updated: "2026-05-23T10:12:36Z"
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 14
-  completed_plans: 14
-  percent: 86
+  total_plans: 17
+  completed_plans: 17
+  percent: 94
 ---
 
 # State: RPi VPN Gateway
@@ -66,6 +66,9 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 - Phase 5 D-14: vpn-rollback.sh Step 4c added — rm -f /etc/white-list-extended.txt; /etc/white-list.txt preserved (not removed) during rollback
 - Phase 5 D-10/D-11: vpn-status.sh --via=vpn|isp filter applied at output time (not entry collection); strict string validation; composes with --filter/--device/--last
 - Phase 5 deploy: deploy.sh TOTAL_STAGES=22; Stage 21 conditionally SCPs exception file (skip if absent); Stage 22 activation drops --no-update for first-deploy correctness
+- Phase 7 D-06: ORG column placed after DOMAIN and before PATH; format "{org} (AS{asn})" or "-" for unknown
+- Phase 7 D-07: --summary aggregate mode top-20 by TOTAL desc; composes with --filter/--device/--via
+- Phase 7 test: Docker image python:3.11-slim-bookworm for macOS re-exec (debian:bookworm-slim lacks python3)
 
 ## Hardware Verified
 
@@ -76,9 +79,9 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 
 ## Last Session
 
-**Stopped at:** Phase 6 planned — 2 plans in 2 waves
-**Timestamp:** 2026-05-21T17:00:00Z
-**Resume:** Run /gsd:execute-phase 06 — Documentation (ops runbook)
+**Stopped at:** Phase 7 plan 02 complete — vpn-status.sh ORG column + --summary aggregate
+**Timestamp:** 2026-05-23T10:12:36Z
+**Resume:** Run /gsd:execute-phase 07 to continue with remaining phase 7 plans (if any)
 
 ---
 *Initialized: 2026-05-18*
