@@ -115,7 +115,8 @@ cp .env.secrets.example .env.secrets
 | Cron + откат | 14–16 | Развёртывание `update-vpn-routes`, запись `/etc/cron.d/vpn-routes` (ежедневно в `CRON_UPDATE_HOUR:00`), развёртывание `vpn-rollback.sh` |
 | Логирование | 17–20 | Установка dnsmasq (до развёртывания конфига), развёртывание `dnsmasq.conf`, развёртывание `vpn-status.sh`, развёртывание `watch-routes.py` |
 | Исключения + NM | 21–22 | Условное развёртывание `white-list-extended.txt` (если файл присутствует); развёртывание NM-диспетчера `10-vpn-routes` |
-| Финальная активация | 23 | Повторный запуск `routing.sh` для применения всех правил iptables LOG и маршрутов исключений |
+| ASN-помощник | 23 | Развёртывание `asn-lookup.py` в `/etc/asn-lookup.py` (помощник Team Cymru bulk-whois для обогащения ORG) |
+| Финальная активация | 24 | Повторный запуск `routing.sh` для применения всех правил iptables LOG и маршрутов исключений |
 
 ### Команды запуска
 
@@ -227,7 +228,9 @@ ssh pi4 "systemctl is-enabled vpn-routing.service" # ожидается: enabled
 
 ### vpn-status.sh
 
-`/etc/vpn-status.sh` читает journald в поисках записей iptables с метками `[VPN]`/`[ISP]`, сопоставляет их с журналом запросов dnsmasq для разрешения IP-адресов назначения в доменные имена (с резервным rDNS-поиском через `host`) и выводит человекочитаемую таблицу соединений.
+`/etc/vpn-status.sh` читает journald в поисках записей iptables с метками `[VPN]`/`[ISP]`, сопоставляет их с журналом запросов dnsmasq для разрешения IP-адресов назначения в доменные имена (с резервным rDNS-поиском через `host`) и выводит человекочитаемую таблицу соединений. Столбцы: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
+
+Столбец `ORG` показывает провайдера/организацию для каждого IP-адреса назначения через Team Cymru ASN (формат: `GOOGLE, US (AS15169)` или `-` если неизвестно). Результаты кешируются в `/tmp/vpn-asn-cache.json`.
 
 Должен запускаться от `sudo` — читает ядерный журнал и логи dnsmasq.
 
@@ -235,17 +238,22 @@ ssh pi4 "systemctl is-enabled vpn-routing.service" # ожидается: enabled
 ssh pi4 "sudo /etc/vpn-status.sh"
 ssh pi4 "sudo /etc/vpn-status.sh --via=vpn --last=100"
 ssh pi4 "sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam"
+
+# Топ-20 организаций по количеству соединений:
+ssh pi4 "sudo /etc/vpn-status.sh --summary"
+ssh pi4 "sudo /etc/vpn-status.sh --summary --via=vpn"
 ```
 
-Все флаги можно комбинировать: `--last`, `--filter`, `--device`, `--via` работают вместе в любом сочетании.
+Все флаги можно комбинировать: `--last`, `--filter`, `--device`, `--via`, `--summary` работают вместе в любом сочетании.
 
 ### watch-routes.py
 
-`/etc/watch-routes.py` — обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k` и разбирает строки `[VPN]`/`[ISP]` по мере их появления, разрешая IP-адреса назначения через кешированные rDNS-запросы. Для остановки нажмите Ctrl+C.
+`/etc/watch-routes.py` — обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k` и разбирает строки `[VPN]`/`[ISP]` по мере их появления, разрешая IP-адреса назначения через кешированные rDNS-запросы. Каждая строка обогащается суффиксом ` | {org}` через фоновый поток, обращающийся к `/etc/asn-lookup.py`, без блокировки потока вывода. Для остановки нажмите Ctrl+C.
 
 ```bash
 ssh pi4 "sudo /etc/watch-routes.py"
 ssh pi4 "sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN"
+ssh pi4 "sudo /etc/watch-routes.py --no-asn"   # отключить обогащение ORG
 ```
 
 ### journald
@@ -452,9 +460,11 @@ ssh pi4 "ip route get 77.88.8.8"    # ожидается: via 192.168.1.1
 
 ### scripts/vpn-status.sh (развёртывается в /etc/vpn-status.sh)
 
-**Синтаксис:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp]`
+**Синтаксис:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
 
-Читает записи `[VPN]`/`[ISP]` из journald, сопоставляет с журналом запросов dnsmasq для разрешения доменных имён, использует rDNS (`host`) как резервный метод. Столбцы вывода: `TIMESTAMP SRC-IP DST-IP DOMAIN PATH`.
+Читает записи `[VPN]`/`[ISP]` из journald, сопоставляет с журналом запросов dnsmasq для разрешения доменных имён, использует rDNS (`host`) как резервный метод. Столбцы вывода: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
+
+Столбец `ORG` показывает `{org} (AS{asn})` через Team Cymru bulk-whois (например, `GOOGLE, US (AS15169)`), или `-` если IP не определён или Cymru недоступен. Все уникальные DST IP запрашиваются за один пакетный вызов. Результаты кешируются в `/tmp/vpn-asn-cache.json` (права 0666).
 
 Должен запускаться от `sudo`.
 
@@ -465,14 +475,15 @@ ssh pi4 "ip route get 77.88.8.8"    # ожидается: via 192.168.1.1
 | `--last=N` | Показать последние N записей ядерного журнала (по умолчанию: 50) |
 | `--filter=STRING` | Поиск без учёта регистра по частичному совпадению в столбце DOMAIN |
 | `--device=IP` | Фильтр по IP-адресу исходного LAN-устройства (поле SRC) |
-| `--via=vpn\|isp` | Показывать только соединения, маршрутизируемые через VPN или ISP; комбинируется с другими фильтрами |
+| `--via=vpn\|isp` | Показывать только соединения через VPN или провайдера; комбинируется с другими фильтрами |
+| `--summary` | Вывести топ-20 агрегированную таблицу по организациям (ORG \| VPN_COUNT \| ISP_COUNT \| TOTAL) вместо таблицы соединений; комбинируется с `--filter`, `--device`, `--via` |
 
 Все флаги комбинируются свободно.
 
 **Примеры:**
 
 ```bash
-# Показать последние 50 соединений (по умолчанию)
+# Показать последние 50 соединений со столбцом ORG (по умолчанию)
 sudo /etc/vpn-status.sh
 
 # Показать последние 100 соединений через VPN
@@ -483,6 +494,12 @@ sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam
 
 # Показать только соединения через провайдера
 sudo /etc/vpn-status.sh --via=isp
+
+# Топ-20 организаций по количеству соединений
+sudo /etc/vpn-status.sh --summary
+
+# Топ организаций для конкретного устройства, только VPN
+sudo /etc/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
 
 # Расширить окно, если вывод пустой
 sudo /etc/vpn-status.sh --last=200
@@ -546,9 +563,9 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 ### scripts/watch-routes.py (развёртывается в /etc/watch-routes.py)
 
-**Синтаксис:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}]`
+**Синтаксис:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
 
-Обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k --no-pager -o short-iso` и разбирает строки `[VPN]`/`[ISP]` по мере их поступления. Разрешает IP-адреса назначения через кешированные rDNS-запросы (кеш в памяти, таймаут 2 секунды на запрос). Выводит обогащённые данные: временная метка, тег, исходный IP, IP-адрес назначения (с именем хоста), протокол и порт. Для остановки нажмите Ctrl+C.
+Обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k --no-pager -o short-iso` и разбирает строки `[VPN]`/`[ISP]` по мере их поступления. Разрешает IP-адреса назначения через кешированные rDNS-запросы. Каждая строка дополняется суффиксом ` | {org}` через фоновый поток, обращающийся к `/etc/asn-lookup.py`, — поток журнала не блокируется. Для остановки нажмите Ctrl+C.
 
 Требует Python 3 (только стандартная библиотека — без pip-зависимостей).
 
@@ -559,11 +576,12 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 | `--src IP` | Показывать только записи, где SRC совпадает с этим IP-адресом |
 | `--no-dns` | Пропустить обратные DNS-запросы; отображать необработанные IP-адреса назначения |
 | `--tag VPN\|ISP\|both` | Фильтр по тегу маршрутизации (по умолчанию: both) |
+| `--no-asn` | Отключить обогащение ASN/org в фоне; строки выводятся без суффикса ` \| {org}` |
 
 **Примеры:**
 
 ```bash
-# Просмотр всех соединений в реальном времени
+# Просмотр всех соединений с обогащением организаций
 sudo /etc/watch-routes.py
 
 # Наблюдение за VPN-трафиком одного устройства
@@ -572,8 +590,34 @@ sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN
 # Без DNS-запросов для более быстрого вывода (полезно при высоком трафике)
 sudo /etc/watch-routes.py --no-dns
 
-# Наблюдение за всем трафиком через провайдера без DNS
-sudo /etc/watch-routes.py --tag ISP --no-dns
+# Наблюдение за всем трафиком через провайдера без DNS и ASN
+sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
+```
+
+---
+
+### scripts/asn-lookup.py (развёртывается в /etc/asn-lookup.py)
+
+**Синтаксис:** `python3 /etc/asn-lookup.py [IP...]`
+
+Общий помощник Team Cymru bulk-whois. Читает IPv4-адреса из stdin (по одному на строку) или из позиционных аргументов, отправляет один пакетный TCP-запрос к `whois.cymru.com:43` и выводит JSON-словарь `{"<ip>": {"asn": "<цифры>", "org": "<название>"}}` в stdout.
+
+Результаты кешируются в `/tmp/vpn-asn-cache.json` (права 0666 — доступно как от root, так и от обычного пользователя). При запуске читает кеш; к Cymru обращается только за некешированными IP. Cymru недоступен → возвращает `{}` или частичный результат, код выхода 0. Никогда не завершается с ошибкой из-за сетевых проблем.
+
+Только стандартная библиотека — без pip-зависимостей.
+
+**Примеры:**
+
+```bash
+# Поиск двух IP
+printf "8.8.8.8\n1.1.1.1\n" | python3 /etc/asn-lookup.py
+
+# Прямой режим CLI
+python3 /etc/asn-lookup.py 8.8.8.8
+
+# Принудительное обновление кеша
+rm -f /tmp/vpn-asn-cache.json
+printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
 ```
 
 ---

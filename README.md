@@ -128,7 +128,8 @@ connecting to the RPi via SSH. You never run individual scripts manually during 
 | Cron + rollback | 14–16 | Deploy `update-vpn-routes`, write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh` |
 | Logging | 17–20 | Install dnsmasq (before config), deploy `dnsmasq.conf`, deploy `vpn-status.sh`, deploy `watch-routes.py` |
 | Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` if present; deploy NM dispatcher `10-vpn-routes` |
-| Final activation | 23 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
+| ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/asn-lookup.py` (Team Cymru bulk-whois helper for ORG enrichment) |
+| Final activation | 24 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
 
 ### Run commands
 
@@ -246,7 +247,11 @@ ssh pi4 "systemctl is-enabled vpn-routing.service" # expect: enabled
 
 `/etc/vpn-status.sh` reads journald for iptables `[VPN]`/`[ISP]` LOG entries, correlates with
 the dnsmasq query log to resolve destination IPs to domain names (with rDNS fallback via `host`),
-and prints a human-readable connection table.
+and prints a human-readable connection table. Output columns: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
+
+The `ORG` column shows the ISP/org name for each destination IP via Team Cymru ASN lookup
+(format: `GOOGLE, US (AS15169)` or `-` when unknown). Lookups are cached in
+`/tmp/vpn-asn-cache.json`; Cymru unreachable → all ORG cells show `-` (non-fatal).
 
 Must be run as `sudo` — reads kernel journal and dnsmasq logs.
 
@@ -254,19 +259,26 @@ Must be run as `sudo` — reads kernel journal and dnsmasq logs.
 ssh pi4 "sudo /etc/vpn-status.sh"
 ssh pi4 "sudo /etc/vpn-status.sh --via=vpn --last=100"
 ssh pi4 "sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam"
+
+# Show top-20 orgs by connection count, split by VPN/ISP:
+ssh pi4 "sudo /etc/vpn-status.sh --summary"
+ssh pi4 "sudo /etc/vpn-status.sh --summary --via=vpn"
 ```
 
-All flags compose: `--last`, `--filter`, `--device`, `--via` can be combined freely.
+All flags compose: `--last`, `--filter`, `--device`, `--via`, `--summary` can be combined freely.
 
 ### watch-routes.py
 
 `/etc/watch-routes.py` is a real-time iptables log enricher. It spawns `journalctl -f -k` and
 parses `[VPN]`/`[ISP]` lines as they appear, resolving destination IPs via cached rDNS lookups.
-Press Ctrl+C to stop.
+Each line is enriched with ` | {org}` via a background thread that queries `/etc/asn-lookup.py`
+without blocking the stream — the org suffix appears on subsequent re-prints of the same IP once
+the cache is warm. Press Ctrl+C to stop.
 
 ```bash
 ssh pi4 "sudo /etc/watch-routes.py"
 ssh pi4 "sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN"
+ssh pi4 "sudo /etc/watch-routes.py --no-asn"   # disable org enrichment
 ```
 
 ### journald
@@ -483,10 +495,15 @@ ssh pi4 "ip route get 77.88.8.8"    # expect: via 192.168.1.1
 
 ### scripts/vpn-status.sh (deployed to /etc/vpn-status.sh)
 
-**Synopsis:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp]`
+**Synopsis:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
 
 Reads journald `[VPN]`/`[ISP]` LOG entries, correlates with dnsmasq query log for domain
-resolution, falls back to rDNS (`host`). Output columns: `TIMESTAMP SRC-IP DST-IP DOMAIN PATH`.
+resolution, falls back to rDNS (`host`). Output columns: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
+
+The `ORG` column shows `{org} (AS{asn})` via Team Cymru bulk-whois (e.g. `GOOGLE, US (AS15169)`),
+or `-` when the IP is unresolvable or Cymru is unreachable. All unique DST IPs are looked up in a
+single batched subprocess call. Results are cached in `/tmp/vpn-asn-cache.json` (mode 0666,
+shared between root and non-root callers).
 
 Must run as `sudo`.
 
@@ -498,13 +515,14 @@ Must run as `sudo`.
 | `--filter=STRING` | Case-insensitive partial match on the DOMAIN column |
 | `--device=IP` | Filter by source LAN device IP (SRC field) |
 | `--via=vpn\|isp` | Show only VPN-routed or ISP-routed connections; composes with other filters |
+| `--summary` | Print top-20 ORG aggregate table (ORG \| VPN_COUNT \| ISP_COUNT \| TOTAL) instead of per-row table; composes with `--filter`, `--device`, `--via` |
 
 All flags compose freely.
 
 **Examples:**
 
 ```bash
-# Show last 50 connections (default)
+# Show last 50 connections with ORG column (default)
 sudo /etc/vpn-status.sh
 
 # Show last 100 VPN-routed connections
@@ -515,6 +533,12 @@ sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam
 
 # Show only ISP-routed connections
 sudo /etc/vpn-status.sh --via=isp
+
+# Top-20 orgs by total connection count
+sudo /etc/vpn-status.sh --summary
+
+# Top orgs for a specific device, VPN-only
+sudo /etc/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
 
 # Extend window when output is empty
 sudo /etc/vpn-status.sh --last=200
@@ -580,12 +604,13 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 ### scripts/watch-routes.py (deployed to /etc/watch-routes.py)
 
-**Synopsis:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}]`
+**Synopsis:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
 
 Real-time iptables log enricher. Spawns `journalctl -f -k --no-pager -o short-iso` and
 parses `[VPN]`/`[ISP]` lines as they arrive. Resolves destination IPs via cached rDNS lookups
-(in-memory cache, 2-second timeout per lookup). Prints enriched output with timestamp, tag,
-source IP, destination IP (with hostname), protocol and port. Press Ctrl+C to stop.
+(in-memory cache, 2-second timeout per lookup). Each line is also enriched with ` | {org}` via a
+background thread that calls `/etc/asn-lookup.py` without blocking the stream — lines print
+immediately; the org suffix appears once the cache is warm for that IP.
 
 Requires Python 3 (stdlib only — no pip dependencies).
 
@@ -596,11 +621,12 @@ Requires Python 3 (stdlib only — no pip dependencies).
 | `--src IP` | Show only entries where SRC matches this IP address |
 | `--no-dns` | Skip reverse DNS lookups; show raw destination IPs |
 | `--tag VPN\|ISP\|both` | Filter by routing tag (default: both) |
+| `--no-asn` | Disable background ASN/org enrichment; lines print without ` \| {org}` suffix |
 
 **Examples:**
 
 ```bash
-# Real-time view of all connections
+# Real-time view of all connections with org enrichment
 sudo /etc/watch-routes.py
 
 # Watch one device's VPN traffic only
@@ -609,8 +635,38 @@ sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN
 # Skip DNS lookups for faster output (useful during high traffic)
 sudo /etc/watch-routes.py --no-dns
 
-# Watch all ISP-routed traffic without DNS
-sudo /etc/watch-routes.py --tag ISP --no-dns
+# Watch all ISP-routed traffic without DNS or ASN lookup
+sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
+```
+
+---
+
+### scripts/asn-lookup.py (deployed to /etc/asn-lookup.py)
+
+**Synopsis:** `python3 /etc/asn-lookup.py [IPs...]`
+
+Shared Team Cymru bulk-whois helper. Reads IPv4 addresses from stdin (one per line) or from
+positional arguments, queries `whois.cymru.com:43` in a single batched TCP session, and writes a
+JSON dict `{"<ip>": {"asn": "<digits>", "org": "<name>"}}` to stdout.
+
+Results are cached in `/tmp/vpn-asn-cache.json` (mode 0666 — readable by both root and
+non-root). Cache is read at startup; only uncached IPs are queried. Cymru unreachable → returns
+`{}` (or partial results), exit 0. Never fatal on network errors.
+
+Stdlib only — no pip dependencies.
+
+**Examples:**
+
+```bash
+# Look up two IPs
+printf "8.8.8.8\n1.1.1.1\n" | python3 /etc/asn-lookup.py
+
+# Direct CLI mode
+python3 /etc/asn-lookup.py 8.8.8.8
+
+# Force cache refresh (delete cache file first)
+rm -f /tmp/vpn-asn-cache.json
+printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
 ```
 
 ---
