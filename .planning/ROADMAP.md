@@ -234,6 +234,13 @@ Plans:
 
 **Phase 7 complete ✓** — hardware-verified 2026-05-23
 
+### Phase 8: RU IP List Exclusion Filter
+
+**Goal:** Allow operators to define CIDR ranges that must be excluded from the downloaded RU IP list; when `scripts/update-vpn-routes` fetches the list, it appends `exclude[cidr4]=...` query parameters to the URL for each CIDR in a local exclusion file, so those ranges are never added to `/etc/white-list.txt` and are routed through the VPN instead of the ISP
+**Requirements**: None mapped (UX enhancement — extends existing download workflow)
+**Depends on:** Phase 3 (update-vpn-routes), Phase 5 (white-list.txt)
+**Plans:** TBD
+
 ---
 *Created: 2026-05-18*
-*Updated: 2026-05-23 — Phase 7 complete; all 7 phases done; hardware-verified on RPi 4 at 192.168.1.237*
+*Updated: 2026-05-23 — Phase 8 added: RU IP list exclusion filter*
