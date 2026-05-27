@@ -85,22 +85,22 @@ Ergonomics and organization phase. Two deliverables:
 - `deploy.sh` stage pattern: numbered stages with `echo "Stage N: ..."` header, `ssh "$SSH_HOST" "..."` execution, idempotent commands. Follow exact same pattern for new `/etc/splitgate/` mkdir stage and dispatcher deploy stage.
 - `scripts/vpn-rollback.sh` teardown: already removes remote files via `ssh "$SSH_HOST" "sudo rm -f ..."`. Extend with new paths.
 - All `*_REMOTE` variables declared at top of `deploy.sh` (lines ~34-66). Update those vars; stage bodies reference them automatically.
-- Dispatcher template (from plan):
-  ```bash
-  #!/bin/bash
-  SPLITGATE_DIR="/etc/splitgate"
-  CMD="${1:-}"
-  shift || true
-  case "$CMD" in
-    status)   exec sudo "$SPLITGATE_DIR/vpn-status.sh" "$@" ;;
-    watch)    exec sudo python3 "$SPLITGATE_DIR/watch-routes.py" "$@" ;;
-    rollback) exec sudo "$SPLITGATE_DIR/vpn-rollback.sh" "$@" ;;
-    routing)  exec sudo "$SPLITGATE_DIR/routing.sh" "$@" ;;
-    update)   exec sudo "$SPLITGATE_DIR/update-vpn-routes" "$@" ;;
-    *)
-      echo "Usage: splitgate {status|watch|rollback|routing|update} [args...]"
-      exit 1
-      ;;
-  esac
-  ```
+  - Dispatcher template (from plan):
+    ```bash
+    #!/bin/bash
+    SPLITGATE_DIR="/etc/splitgate"
+    CMD="${1:-}"
+    shift || true
+    case "$CMD" in
+      status)   exec sudo "$SPLITGATE_DIR/vpn-status.sh" "$@" ;;
+      watch)    exec sudo python3 "$SPLITGATE_DIR/watch-routes.py" "$@" ;;
+      rollback) exec sudo "$SPLITGATE_DIR/vpn-rollback.sh" "$@" ;;
+      routing)  exec sudo "$SPLITGATE_DIR/routing.sh" "$@" ;;
+      update)   exec sudo "$SPLITGATE_DIR/update-vpn-routes" "$@" ;;
+      *)
+        echo "Usage: splitgate {status|watch|rollback|routing|update} [args...]"
+        exit 1
+        ;;
+    esac
+    ```
 </code_context>

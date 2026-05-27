@@ -40,6 +40,8 @@ EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs 
 | 6 — Documentation | ◆ Planned | 0/2 | 0% |
 | 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
 | 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
+| 9 — Operational Logging | ◆ Planned | 0/? | 0% |
+| 10 — Splitgate Ergonomics & Organization | ◆ Planned | 0/4 | 0% |
 
 ## Requirements
 
@@ -109,6 +111,7 @@ EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs 
 - Phase 6 added: Documentation — ops runbook (deploy, verify, rollback, add exceptions)
 - Phase 7 added: ASN Enrichment & Traffic Attribution
 - Phase 9 added: Operational Logging — centralized logs for diagnosing system failures; 14-day rotation
+- Phase 10 added: Splitgate Ergonomics & Organization — consolidate RPi files under /etc/splitgate/, add splitgate dispatcher CLI, move repo source into src/ subdirectory; 4 plans across 3 waves (Wave 0: src/ restructure; Wave 1: path migration + deploy.sh parallel; Wave 2: dispatcher + docs)
 
 ### Phase 4 Post-execution Fixes (applied after plans, discovered during live testing)
 
