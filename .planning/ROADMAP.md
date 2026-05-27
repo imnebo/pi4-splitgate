@@ -19,7 +19,7 @@
 | 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org via Team Cymru | ✓ Complete |
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from downloaded RU list so they route via VPN | ✓ Complete |
 | 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
-| 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/; add splitgate dispatcher | ○ Pending |
+| 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/; add splitgate dispatcher | ◆ Planned |
 
 ---
 
@@ -269,12 +269,21 @@ Plans:
 ### Phase 10: Splitgate Ergonomics & Organization
 
 **Goal:** Consolidate all RPi app files under `/etc/splitgate/` (branded namespace); move Phase 9 logs to `/etc/splitgate/logs/`; add `/usr/local/bin/splitgate` dispatcher with subcommands: `status`, `watch`, `rollback`, `routing`, `update`
-**Depends on:** Phase 9
-**Plans:** TBD
+**Requirements**: None mapped (UX/ergonomics phase — pure path consolidation + dispatcher CLI; no new v1 requirements)
+**Depends on:** Phase 9 (logrotate stanza targets the Phase 9 log path under the new namespace)
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+**Wave 1 (parallel — disjoint file sets):**
+
+- [ ] 10-01-PLAN.md — Rewrite internal `/etc/` path references in scripts/routing.sh, vpn-status.sh, vpn-rollback.sh (+ D-18 splitgate teardown), update-vpn-routes, watch-routes.py, 10-vpn-routes, systemd/vpn-routing.service to the `/etc/splitgate/` namespace
+- [ ] 10-02-PLAN.md — Update deploy.sh `*_REMOTE` variables to `/etc/splitgate/...`; add SPLITGATE_/LOGROTATE_ variables + preflight checks; insert Stages 5 (mkdir splitgate), 26 (dispatcher deploy), 27 (logrotate deploy); bump TOTAL_STAGES=27; refresh final summary
+
+**Wave 2 (after Wave 1):**
+
+- [ ] 10-03-PLAN.md — Create scripts/splitgate dispatcher (D-13..D-17) + configs/logrotate-vpn-gateway (D-02, D-19); update README.md and docs/README.ru.md with the splitgate CLI, new filesystem layout, and D-18 rollback behavior
 
 ---
 *Created: 2026-05-18*
-*Updated: 2026-05-23 — Phase 10 added: splitgate ergonomics & organization*
+*Updated: 2026-05-27 — Phase 10 planned: 3 plans across 2 waves (path migration + deploy.sh updates parallel in Wave 1; new dispatcher + logrotate + docs in Wave 2)*

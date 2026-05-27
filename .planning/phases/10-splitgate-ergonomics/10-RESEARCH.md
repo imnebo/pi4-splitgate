@@ -510,21 +510,24 @@ No new ASVS categories apply.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should Phase 10 also apply Phase 9 log-function changes?**
    - What we know: Phase 9 has not been executed. `scripts/routing.sh` still uses `echo "[routing] $*"`. Phase 10 CONTEXT.md only says to update logrotate config path (D-19), not to implement the full Phase 9 log() rewrite.
    - What's unclear: If Phase 9 is executed after Phase 10, Phase 9's plan will need to use the new `/etc/splitgate/` paths in the new `log()` functions.
    - Recommendation: **Do NOT include Phase 9 log() function changes in Phase 10.** Phase 10 creates `configs/logrotate-vpn-gateway` with the correct path. Phase 9 implements the log() rewrite and must be told to use `/etc/splitgate/logs/vpn-gateway.log` (not the now-superseded `/var/log/vpn-gateway.log`).
+   - **RESOLVED:** Phase 10 does NOT implement Phase 9 log() function changes. Plan 03 Task 2 creates only the logrotate config. Log() rewrite stays in Phase 9 scope.
 
 2. **Should deploy.sh remove old `/etc/` stale files during Phase 10 deploy?**
    - What we know: After Phase 10 deploy, both old paths (`/etc/routing.sh`) and new paths (`/etc/splitgate/routing.sh`) exist on RPi.
    - What's unclear: Whether the user wants explicit cleanup in deploy.sh or manual cleanup is acceptable.
    - Recommendation: Add explicit cleanup as the first new stage (before mkdir for `/etc/splitgate/`). Pattern: `ssh "$SSH_HOST" "sudo rm -f /etc/routing.sh /etc/vpn-rollback.sh /etc/update-vpn-routes /etc/vpn-status.sh /etc/watch-routes.py /etc/asn-lookup.py /etc/vpn-gateway.env /etc/white-list-extended.txt /etc/ru-exclude.txt"`. This is idempotent (rm -f handles absence) and avoids confusion.
+   - **RESOLVED:** No explicit cleanup stage added in the current plans. Manual cleanup is acceptable. Stale files are inert (nothing will call old paths after deploy). Can be added as a follow-up quick task if desired.
 
 3. **Stage renumbering: insert new stages vs. append?**
    - What we know: Current TOTAL_STAGES=24. Phase 10 needs mkdir + dispatcher deploy + logrotate deploy + (optionally) cleanup = 3-4 new stages.
    - Recommendation: Append new stages 25–27 (or 25–28 if cleanup included). Avoid renumbering existing stages 1–24 to minimize diff size and risk of error.
+   - **RESOLVED:** Plan 02 chose insert-and-renumber approach — mkdir inserted as Stage 5 (before awg0.conf render), dispatcher as Stage 26, logrotate as Stage 27. TOTAL_STAGES=27.
 
 ---
 
