@@ -62,6 +62,9 @@ ASN_LOOKUP_TMP="/tmp/asn-lookup.py.tmp"
 WHITE_LIST_EXT_LOCAL="configs/white-list-extended.txt"
 WHITE_LIST_EXT_REMOTE="/etc/white-list-extended.txt"
 WHITE_LIST_EXT_TMP="/tmp/white-list-extended.tmp"
+EXCLUDE_LIST_LOCAL="configs/ru-exclude.txt"
+EXCLUDE_LIST_REMOTE="/etc/ru-exclude.txt"
+EXCLUDE_LIST_TMP="/tmp/ru-exclude.tmp"
 NM_DISPATCHER_LOCAL="scripts/10-vpn-routes"
 NM_DISPATCHER_REMOTE="/etc/NetworkManager/dispatcher.d/10-vpn-routes"
 NM_DISPATCHER_TMP="/tmp/10-vpn-routes.tmp"
@@ -368,6 +371,16 @@ else
     echo "       ${WHITE_LIST_EXT_LOCAL} not found in repo — skipping exception file deploy (D-05)."
 fi
 
+# ─── Stage 21b: Deploy ru-exclude.txt to RPi (D-07, D-08) ──────────────────
+echo "[21/${TOTAL_STAGES}] Deploying ru-exclude.txt to ${SSH_HOST} (if present)..."
+if [[ -f "${EXCLUDE_LIST_LOCAL}" ]]; then
+    scp -o BatchMode=yes "${EXCLUDE_LIST_LOCAL}" "${SSH_HOST}:${EXCLUDE_LIST_TMP}"
+    ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${EXCLUDE_LIST_TMP} ${EXCLUDE_LIST_REMOTE} && sudo chmod 644 ${EXCLUDE_LIST_REMOTE} && sudo chown root:root ${EXCLUDE_LIST_REMOTE}"
+    echo "       ru-exclude.txt deployed (mode 644, root:root)."
+else
+    echo "       ${EXCLUDE_LIST_LOCAL} not found in repo — skipping exclude list deploy (D-04)."
+fi
+
 # ─── Stage 22: Deploy NM dispatcher for carrier-change route recovery ────────
 echo "[22/${TOTAL_STAGES}] Deploying NM dispatcher ${NM_DISPATCHER_LOCAL} to ${SSH_HOST}:${NM_DISPATCHER_REMOTE}..."
 ssh -o BatchMode=yes "${SSH_HOST}" "sudo mkdir -p /etc/NetworkManager/dispatcher.d"
@@ -410,6 +423,7 @@ echo "   PHASE 4: iptables LOG rules [VPN] + [ISP] active (via routing.sh)"
 echo "   PHASE 5: ${WHITE_LIST_EXT_REMOTE} (mode 644, root:root, optional — deployed only if ${WHITE_LIST_EXT_LOCAL} exists)
    PHASE 6: ${NM_DISPATCHER_REMOTE} (chmod 755, root:root — restores routes on eth0 up)"
 echo "   PHASE 7: ${ASN_LOOKUP_REMOTE} (chmod +x, root:root — ASN/org enrichment helper)"
+echo "   PHASE 8: ${EXCLUDE_LIST_REMOTE} (mode 644, root:root, optional — deployed only if ${EXCLUDE_LIST_LOCAL} exists)"
 echo ""
 echo " Next steps (run manually — tunnel bring-up is intentionally NOT automated):"
 echo ""
