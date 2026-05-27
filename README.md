@@ -114,7 +114,7 @@ Without this step, the DOMAIN column in `vpn-status.sh` will show raw IPs.
 
 ## Deploy
 
-`deploy.sh` is the single deploy orchestrator. It runs 23 stages in sequence from your Mac,
+`deploy.sh` is the single deploy orchestrator. It runs 27 stages in sequence from your Mac,
 connecting to the RPi via SSH. You never run individual scripts manually during initial setup.
 
 ### Stage groups
@@ -123,14 +123,16 @@ connecting to the RPi via SSH. You never run individual scripts manually during 
 |-------|--------|--------------|
 | Preflight | 1–3 | Check required local files, source `.env` + `.env.secrets`, validate keys, verify SSH connectivity |
 | AmneziaWG install | 4 | Stream `src/scripts/install-awg.sh` over SSH to the RPi; DKMS build may take 10–30 min |
-| Config deploy | 5–9 | Render and deploy `awg0.conf` (mode 600), deploy `vpn-gateway.env` (mode 644), post-deploy file checks |
-| Routing deploy | 10–11 | SCP `routing.sh` to `/etc/splitgate/routing.sh`, activate split-tunnel routing (unless `--no-run`) |
-| Autostart | 12–13 | Deploy `vpn-routing.service`, reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot |
-| Cron + rollback | 14–16 | Deploy `update-vpn-routes`, write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh` |
-| Logging | 17–20 | Install dnsmasq (before config), deploy `dnsmasq.conf`, deploy `vpn-status.sh`, deploy `watch-routes.py` |
-| Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` if present; conditionally deploy `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
-| ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` (Team Cymru bulk-whois helper for ORG enrichment) |
-| Final activation | 24 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
+| Splitgate namespace | 5 | Create `/etc/splitgate/` and `/etc/splitgate/logs/` on the RPi (must precede all file deploys into `/etc/splitgate/`) |
+| Config deploy | 6–10 | Render and deploy `awg0.conf` (mode 600), deploy `vpn-gateway.env` (mode 644), post-deploy file checks |
+| Routing deploy | 11–12 | SCP `routing.sh` to `/etc/splitgate/routing.sh`, activate split-tunnel routing (unless `--no-run`) |
+| Autostart | 13–14 | Deploy `vpn-routing.service`, reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot |
+| Cron + rollback | 15–17 | Deploy `update-vpn-routes`, write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh` |
+| Logging | 18–21 | Install dnsmasq (before config), deploy `dnsmasq.conf`, deploy `vpn-status.sh`, deploy `watch-routes.py` |
+| Exceptions + NM | 22–23 | Conditionally deploy `white-list-extended.txt` if present; conditionally deploy `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
+| ASN helper | 24 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` (Team Cymru bulk-whois helper for ORG enrichment) |
+| Final activation | 25 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
+| Splitgate artifacts | 26–27 | Deploy `splitgate` dispatcher to `/usr/local/bin/splitgate` (chmod +x); deploy `logrotate-vpn-gateway` to `/etc/logrotate.d/vpn-gateway` (mode 644) |
 
 ### Run commands
 
@@ -361,8 +363,8 @@ Note: `src/configs/white-list-extended.txt` is gitignored and will not be commit
 bash src/deploy.sh
 ```
 
-Stage 21 SCPs `src/configs/white-list-extended.txt` to `/etc/splitgate/white-list-extended.txt` on the RPi.
-Stage 23 re-runs `routing.sh`, which loads exception routes in Stage 5b.
+Stage 22 SCPs `src/configs/white-list-extended.txt` to `/etc/splitgate/white-list-extended.txt` on the RPi.
+Stage 25 re-runs `routing.sh`, which loads exception routes in Stage 5b.
 
 **Step 5: Verify**
 
@@ -432,7 +434,7 @@ documents the format.
 bash src/deploy.sh
 ```
 
-Stage 21 SCPs `src/configs/ru-exclude.txt` to `/etc/splitgate/ru-exclude.txt` on the RPi.
+Stage 22b SCPs `src/configs/ru-exclude.txt` to `/etc/splitgate/ru-exclude.txt` on the RPi.
 
 **Step 4: Trigger a route rebuild**
 
@@ -510,7 +512,7 @@ freshly rendered copy from your template + `.env.secrets`.
 
 **Synopsis:** `bash src/deploy.sh [--no-run]`
 
-Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 24 stages.
+Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 27 stages.
 Sources `.env` and `.env.secrets`; validates keys before any remote operation.
 
 **Flags:**
@@ -810,7 +812,7 @@ Symptom: Stage 17/18 of `deploy.sh` fails; `systemctl status dnsmasq` shows a co
 
 Cause: If `dnsmasq` config is deployed before the `dnsmasq` package is installed, `apt-get install dnsmasq` will overwrite the deployed config with the package default, or prompt interactively.
 
-Fix: Re-run `bash src/deploy.sh` — Stage 17 always installs `dnsmasq` before Stage 18 deploys the config. The install uses `DEBIAN_FRONTEND=noninteractive` to prevent interactive prompts.
+Fix: Re-run `bash src/deploy.sh` — Stage 18 always installs `dnsmasq` before Stage 19 deploys the config. The install uses `DEBIAN_FRONTEND=noninteractive` to prevent interactive prompts.
 
 ---
 
@@ -862,7 +864,7 @@ Symptom: VPN routing breaks after the router reboots or the eth0 link goes down 
 
 Cause: When the router reboots, the eth0 link drops (carrier-change event). NetworkManager (NM) flushes all eth0 routes on the link-down event — including the ~1360 RU CIDR routes and the VPN server host route added by `routing.sh`. When eth0 comes back up, only the local link route is restored by NM. Without the VPN server host route (`YOUR_VPN_SERVER_IP/32 via 192.168.1.1`), `ip route get YOUR_VPN_SERVER_IP` resolves via `awg0` (policy table 51820), creating a routing loop. No VPN connection → no internet → the daily cron download also fails → the system cannot self-heal without intervention.
 
-Fix: `deploy.sh` Stage 22 deploys `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — an NM dispatcher script that automatically restores routes by running `routing.sh --no-update` in the background when `eth0 up` is detected.
+Fix: `deploy.sh` Stage 23 deploys `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — an NM dispatcher script that automatically restores routes by running `routing.sh --no-update` in the background when `eth0 up` is detected.
 
 Verify the dispatcher is working:
 

@@ -102,7 +102,7 @@ cp .env.secrets.example .env.secrets
 
 ## Развёртывание
 
-`deploy.sh` — единственный оркестратор развёртывания. Он выполняет 23 шага последовательно с вашего Mac, подключаясь к RPi по SSH. Во время первоначальной установки вы не запускаете отдельные скрипты вручную.
+`deploy.sh` — единственный оркестратор развёртывания. Он выполняет 27 шагов последовательно с вашего Mac, подключаясь к RPi по SSH. Во время первоначальной установки вы не запускаете отдельные скрипты вручную.
 
 ### Группы шагов
 
@@ -110,14 +110,16 @@ cp .env.secrets.example .env.secrets
 |--------|------|----------------|
 | Предварительные проверки | 1–3 | Проверка обязательных локальных файлов, загрузка `.env` + `.env.secrets`, валидация ключей, проверка SSH-подключения |
 | Установка AmneziaWG | 4 | Потоковая передача `src/scripts/install-awg.sh` по SSH на RPi; сборка DKMS может занять 10–30 минут |
-| Развёртывание конфигурации | 5–9 | Генерация и развёртывание `awg0.conf` (права 600), развёртывание `vpn-gateway.env` (права 644), проверка файлов после развёртывания |
-| Развёртывание маршрутизации | 10–11 | SCP-копирование `routing.sh` в `/etc/splitgate/routing.sh`, активация раздельной маршрутизации (если не указан `--no-run`) |
-| Автозапуск | 12–13 | Развёртывание `vpn-routing.service`, перезагрузка systemd, включение `awg-quick@awg0` + `vpn-routing.service` при загрузке |
-| Cron + откат | 14–16 | Развёртывание `update-vpn-routes`, запись `/etc/cron.d/vpn-routes` (ежедневно в `CRON_UPDATE_HOUR:00`), развёртывание `vpn-rollback.sh` |
-| Логирование | 17–20 | Установка dnsmasq (до развёртывания конфига), развёртывание `dnsmasq.conf`, развёртывание `vpn-status.sh`, развёртывание `watch-routes.py` |
-| Исключения + NM | 21–22 | Условное развёртывание `white-list-extended.txt` (если файл присутствует); условное развёртывание `ru-exclude.txt` (если файл присутствует); развёртывание NM-диспетчера `10-vpn-routes` |
-| ASN-помощник | 23 | Развёртывание `asn-lookup.py` в `/etc/splitgate/asn-lookup.py` (помощник Team Cymru bulk-whois для обогащения ORG) |
-| Финальная активация | 24 | Повторный запуск `routing.sh` для применения всех правил iptables LOG и маршрутов исключений |
+| Пространство имён splitgate | 5 | Создание `/etc/splitgate/` и `/etc/splitgate/logs/` на RPi (выполняется до всех развёртываний файлов в `/etc/splitgate/`) |
+| Развёртывание конфигурации | 6–10 | Генерация и развёртывание `awg0.conf` (права 600), развёртывание `vpn-gateway.env` (права 644), проверка файлов после развёртывания |
+| Развёртывание маршрутизации | 11–12 | SCP-копирование `routing.sh` в `/etc/splitgate/routing.sh`, активация раздельной маршрутизации (если не указан `--no-run`) |
+| Автозапуск | 13–14 | Развёртывание `vpn-routing.service`, перезагрузка systemd, включение `awg-quick@awg0` + `vpn-routing.service` при загрузке |
+| Cron + откат | 15–17 | Развёртывание `update-vpn-routes`, запись `/etc/cron.d/vpn-routes` (ежедневно в `CRON_UPDATE_HOUR:00`), развёртывание `vpn-rollback.sh` |
+| Логирование | 18–21 | Установка dnsmasq (до развёртывания конфига), развёртывание `dnsmasq.conf`, развёртывание `vpn-status.sh`, развёртывание `watch-routes.py` |
+| Исключения + NM | 22–23 | Условное развёртывание `white-list-extended.txt` (если файл присутствует); условное развёртывание `ru-exclude.txt` (если файл присутствует); развёртывание NM-диспетчера `10-vpn-routes` |
+| ASN-помощник | 24 | Развёртывание `asn-lookup.py` в `/etc/splitgate/asn-lookup.py` (помощник Team Cymru bulk-whois для обогащения ORG) |
+| Финальная активация | 25 | Повторный запуск `routing.sh` для применения всех правил iptables LOG и маршрутов исключений |
+| Артефакты splitgate | 26–27 | Развёртывание диспетчера `splitgate` в `/usr/local/bin/splitgate` (chmod +x); развёртывание `logrotate-vpn-gateway` в `/etc/logrotate.d/vpn-gateway` (права 644) |
 
 ### Команды запуска
 
@@ -332,7 +334,7 @@ cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.t
 bash src/deploy.sh
 ```
 
-Шаг 21 копирует `src/configs/white-list-extended.txt` по SCP в `/etc/splitgate/white-list-extended.txt` на RPi. Шаг 23 повторно запускает `routing.sh`, который загружает маршруты исключений на шаге 5b.
+Шаг 22 копирует `src/configs/white-list-extended.txt` по SCP в `/etc/splitgate/white-list-extended.txt` на RPi. Шаг 25 повторно запускает `routing.sh`, который загружает маршруты исключений на шаге 5b.
 
 **Шаг 5: Проверьте**
 
@@ -394,7 +396,7 @@ cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
 bash src/deploy.sh
 ```
 
-Stage 21 скопирует `src/configs/ru-exclude.txt` на RPi как `/etc/splitgate/ru-exclude.txt`.
+Stage 22b скопирует `src/configs/ru-exclude.txt` на RPi как `/etc/splitgate/ru-exclude.txt`.
 
 **Шаг 4: Обновление маршрутов**
 
@@ -470,7 +472,7 @@ bash src/deploy.sh
 
 **Синтаксис:** `bash src/deploy.sh [--no-run]`
 
-Запускается с вашего Mac. Подключается к RPi через `SSH_HOST=pi4` (из `.env`). 24 шага. Загружает `.env` и `.env.secrets`; проверяет ключи перед любой удалённой операцией.
+Запускается с вашего Mac. Подключается к RPi через `SSH_HOST=pi4` (из `.env`). 27 шагов. Загружает `.env` и `.env.secrets`; проверяет ключи перед любой удалённой операцией.
 
 **Флаги:**
 
@@ -748,7 +750,7 @@ printf "8.8.8.8\n" | python3 /etc/splitgate/asn-lookup.py
 
 **dnsmasq не запускается или конфликтует с существующей конфигурацией**
 
-Симптом: Шаги 17/18 `deploy.sh` завершаются ошибкой; `systemctl status dnsmasq` показывает ошибку разбора конфигурации или конфликт портов.
+Симптом: Шаги 18/19 `deploy.sh` завершаются ошибкой; `systemctl status dnsmasq` показывает ошибку разбора конфигурации или конфликт портов.
 
 Причина: Если конфигурация `dnsmasq` развёртывается до установки пакета, `apt-get install dnsmasq` перезапишет развёрнутую конфигурацию конфигурацией по умолчанию пакета или запустит интерактивный запрос.
 
@@ -804,7 +806,7 @@ ssh pi4 "sudo systemctl restart awg-quick@awg0"
 
 Причина: Когда роутер перезагружается, канал eth0 пропадает (событие смены carrier). NetworkManager (NM) сбрасывает все маршруты eth0 при событии опускания канала — включая ~1360 маршрутов RU-подсетей и маршрут к VPN-серверу, добавленных `routing.sh`. Когда eth0 поднимается снова, NM восстанавливает только локальный маршрут для канала. Без маршрута к VPN-серверу (`YOUR_VPN_SERVER_IP/32 via 192.168.1.1`) команда `ip route get YOUR_VPN_SERVER_IP` разрешается через `awg0` (таблица политик 51820), создавая петлю маршрутизации. Нет VPN → нет интернета → ежедневная загрузка через cron тоже не работает → система не может самовосстановиться без вмешательства.
 
-Решение: Шаг 22 `deploy.sh` развёртывает `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — скрипт NM-диспетчера, который автоматически восстанавливает маршруты, запуская `routing.sh --no-update` в фоне при обнаружении события `eth0 up`.
+Решение: Шаг 23 `deploy.sh` развёртывает `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — скрипт NM-диспетчера, который автоматически восстанавливает маршруты, запуская `routing.sh --no-update` в фоне при обнаружении события `eth0 up`.
 
 Проверка работы диспетчера:
 
