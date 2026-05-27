@@ -239,7 +239,7 @@ Plans:
 **Goal:** Allow operators to define CIDR ranges that must be excluded from the downloaded RU IP list; when `scripts/update-vpn-routes` fetches the list, it appends `exclude[cidr4]=...` query parameters to the URL for each CIDR in a local exclusion file, so those ranges are never added to `/etc/white-list.txt` and are routed through the VPN instead of the ISP
 **Requirements**: None mapped (UX enhancement — extends existing download workflow)
 **Depends on:** Phase 3 (update-vpn-routes), Phase 5 (white-list.txt)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -250,7 +250,7 @@ Plans:
 
 **Wave 2 (after Wave 1):**
 
-- [ ] 08-03-PLAN.md — configs/ru-exclude.txt.example, .gitignore entry, README.md + docs/README.ru.md documentation
+- [x] 08-03-PLAN.md — configs/ru-exclude.txt.example, .gitignore entry, README.md + docs/README.ru.md documentation
 
 ### Phase 9: Operational Logging
 
