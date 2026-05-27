@@ -19,7 +19,7 @@
 | 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org via Team Cymru | ✓ Complete |
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from downloaded RU list so they route via VPN | ✓ Complete |
 | 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
-| 10 | 3/4 | In Progress|  |
+| 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/, splitgate dispatcher CLI, log rotation | ✓ Complete |
 
 ---
 
@@ -271,7 +271,7 @@ Plans:
 **Goal:** Consolidate all RPi app files under `/etc/splitgate/` (branded namespace); move Phase 9 logs to `/etc/splitgate/logs/`; add `/usr/local/bin/splitgate` dispatcher with subcommands: `status`, `watch`, `rollback`, `routing`, `update`
 **Requirements**: None mapped (UX/ergonomics phase — pure path consolidation + dispatcher CLI; no new v1 requirements)
 **Depends on:** Phase 9 (logrotate stanza targets the Phase 9 log path under the new namespace)
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
@@ -286,7 +286,9 @@ Plans:
 
 **Wave 2 (after Wave 1):**
 
-- [ ] 10-03-PLAN.md — Create src/scripts/splitgate dispatcher (D-13..D-17) + src/configs/logrotate-vpn-gateway (D-02, D-19); update README.md and docs/README.ru.md with the splitgate CLI, new filesystem layout, and D-18 rollback behavior
+- [x] 10-03-PLAN.md — Create src/scripts/splitgate dispatcher (D-13..D-17) + src/configs/logrotate-vpn-gateway (D-02, D-19); update README.md and docs/README.ru.md with the splitgate CLI, new filesystem layout, and D-18 rollback behavior ✓ 2026-05-27
+
+**Phase 10 complete ✓**
 
 ---
 *Created: 2026-05-18*
