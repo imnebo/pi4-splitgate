@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 10 in progress — 1/4 plans done
-stopped_at: "10-00-PLAN.md complete — src/ restructure done"
-last_updated: "2026-05-27T17:08:00Z"
+status: Phase 10 in progress — 2/4 plans done
+stopped_at: Phase 10 Plan 01 complete — /etc/splitgate/ path migration done
+last_updated: "2026-05-27T18:14:00Z"
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 24
-  completed_plans: 21
-  percent: 80
+  completed_plans: 23
+  percent: 87
 ---
 
 # State: RPi VPN Gateway
@@ -24,9 +24,11 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 10: Splitgate Ergonomics — IN PROGRESS (1/4 plans)**
+**Phase 10: Splitgate Ergonomics — IN PROGRESS (2/4 plans)**
 
-10-00 complete: all source dirs moved to src/; deploy.sh updated for auto-navigation; .gitignore and READMEs updated. Next: 10-01, 10-02 (Wave 1).
+10-00 complete: all source dirs moved to src/.
+10-01 complete: all internal /etc/ paths in 7 scripts/units migrated to /etc/splitgate/; vpn-rollback.sh D-18 teardown added.
+Next: 10-02 (deploy.sh remote variable updates).
 
 ## Phase Progress
 
@@ -41,7 +43,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 | 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
 | 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
 | 9 — Operational Logging | ◆ Planned | 0/? | 0% |
-| 10 — Splitgate Ergonomics & Organization | ◆ In Progress | 1/4 | 25% |
+| 10 — Splitgate Ergonomics & Organization | ◆ In Progress | 2/4 | 50% |
 
 ## Requirements
 
@@ -80,6 +82,8 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 - Phase 8 D-07/D-08: EXCLUDE_LIST_LOCAL=configs/ru-exclude.txt; Stage 21b conditional SCP to /etc/ru-exclude.txt (chmod 644, root:root); no TOTAL_STAGES bump (remains 24); configs/ru-exclude.txt gitignored
 - Phase 10 D-10-00-01: cd dirname BASH_SOURCE[0] in src/deploy.sh — all *_LOCAL relative paths resolve to src/ subdirectories without modification
 - Phase 10 D-10-00-02: .env/.env.secrets accessed via ../ prefix from src/; root .gitignore gains src/configs/ prefix on previously bare configs/ entries
+- Phase 10 D-10-01 (D-18): vpn-rollback.sh Step 7b removes /usr/local/bin/splitgate then /etc/splitgate/ tree as final filesystem ops after route restoration (per Pitfall 5)
+- Phase 10 D-10-01 (D-12): /etc/iptables/rules.v4 path in routing.sh left unchanged; iptables-persistent requires exact path
 
 ## Hardware Verified
 
@@ -90,9 +94,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Last Session
 
-**Stopped at:** Phase 10 Plan 00 complete — src/ restructure done
-**Timestamp:** 2026-05-27T17:08:00Z
-**Resume:** 10-00 done. All source moved to src/. Wave 1 plans 10-01 and 10-02 next (RPi path migration + deploy.sh parallel execution).
+**Stopped at:** Phase 10 Plan 01 complete — /etc/splitgate/ path migration done
+**Timestamp:** 2026-05-27T18:14:00Z
+**Resume:** 10-01 done. All internal /etc/ paths migrated to /etc/splitgate/ in 7 scripts/units. Wave 1 plan 10-02 next (deploy.sh remote variable updates).
 
 ---
 *Initialized: 2026-05-18*

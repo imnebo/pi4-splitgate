@@ -281,7 +281,7 @@ Plans:
 
 **Wave 1 (parallel — disjoint file sets, after Wave 0):**
 
-- [ ] 10-01-PLAN.md — Rewrite internal `/etc/` path references in src/scripts/routing.sh, vpn-status.sh, vpn-rollback.sh (+ D-18 splitgate teardown), update-vpn-routes, watch-routes.py, 10-vpn-routes, src/systemd/vpn-routing.service to the `/etc/splitgate/` namespace
+- [x] 10-01-PLAN.md — Rewrite internal `/etc/` path references in src/scripts/routing.sh, vpn-status.sh, vpn-rollback.sh (+ D-18 splitgate teardown), update-vpn-routes, watch-routes.py, 10-vpn-routes, src/systemd/vpn-routing.service to the `/etc/splitgate/` namespace ✓ 2026-05-27
 - [ ] 10-02-PLAN.md — Update src/deploy.sh `*_REMOTE` variables to `/etc/splitgate/...`; add SPLITGATE_/LOGROTATE_ variables + preflight checks; insert Stages 5 (mkdir splitgate), 26 (dispatcher deploy), 27 (logrotate deploy); bump TOTAL_STAGES=27; refresh final summary
 
 **Wave 2 (after Wave 1):**
