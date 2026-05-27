@@ -576,7 +576,9 @@ Normally called by cron daily at `CRON_UPDATE_HOUR:00` (default 5:00 AM). Can be
 for a one-off update.
 
 Behavior:
-- Downloads RU subnet list to a temp file
+- Builds `EFFECTIVE_URL` from `RU_SUBNET_URL`; if `/etc/ru-exclude.txt` exists, appends
+  `&exclude[cidr4]=CIDR` for each non-comment, non-blank line (see Exclusion Filter below)
+- Downloads RU subnet list to a temp file using `EFFECTIVE_URL`
 - SHA256-compares against existing `/etc/white-list.txt`
 - If hash matches: exits 0 (no rebuild, no disruption)
 - If hash differs: atomically swaps the file, then runs `/etc/routing.sh --no-update`
@@ -585,6 +587,24 @@ Behavior:
   recovery) — if missing, rebuilds routes from the existing subnet file
 
 Logs via `logger -t "vpn-routes"` (visible in journald).
+
+**Exclusion Filter (`/etc/ru-exclude.txt`):**
+
+To route specific CIDR ranges through the VPN instead of the ISP (i.e., exclude them from the
+RU direct-route list), create `/etc/ru-exclude.txt` on the RPi with one CIDR per line:
+
+```text
+# Lines starting with # are ignored
+# Blank lines are ignored
+1.2.3.0/24
+5.6.7.0/22
+```
+
+When this file exists and has valid entries, the script appends `&exclude[cidr4]=CIDR` query
+parameters to the download URL so the upstream server omits those CIDRs from the response.
+If the file is absent or empty, behavior is identical to the default (no exclusions).
+
+Number of excluded CIDRs is logged: `journalctl -t vpn-routes | grep "Excluding"`.
 
 **Examples:**
 
