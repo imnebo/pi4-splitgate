@@ -14,8 +14,8 @@ the RPi, which splits it into two paths:
 - **Non-RU traffic** exits through the AmneziaWG VPN tunnel (`awg0`).
 - **Russian IP ranges** (downloaded daily from `russia.iplist.opencck.org`) exit direct via the
   ISP gateway (router at `192.168.1.1`).
-- **Custom exceptions** (`/etc/white-list-extended.txt`) can force additional CIDRs via ISP.
-- **RU list exclusion filter** (`/etc/ru-exclude.txt`) can exclude specific CIDRs from the downloaded RU list so they route via VPN instead of ISP.
+- **Custom exceptions** (`/etc/splitgate/white-list-extended.txt`) can force additional CIDRs via ISP.
+- **RU list exclusion filter** (`/etc/splitgate/ru-exclude.txt`) can exclude specific CIDRs from the downloaded RU list so they route via VPN instead of ISP.
 - **VPN server host route** (`YOUR_VPN_SERVER_IP/32`) is always kept via ISP to prevent a routing loop.
 
 LAN devices are configured to use the RPi as their gateway via a router DHCP option. They
@@ -35,7 +35,7 @@ Traffic routing:
   RU CIDRs + exceptions → eth0 → ISP direct (via 192.168.1.1)
 ```
 
-Key environment variables (from `/etc/vpn-gateway.env` on the RPi, sourced from `.env` in this repo):
+Key environment variables (from `/etc/splitgate/vpn-gateway.env` on the RPi, sourced from `.env` in this repo):
 
 | Variable | Value | Description |
 |----------|-------|-------------|
@@ -124,12 +124,12 @@ connecting to the RPi via SSH. You never run individual scripts manually during 
 | Preflight | 1–3 | Check required local files, source `.env` + `.env.secrets`, validate keys, verify SSH connectivity |
 | AmneziaWG install | 4 | Stream `src/scripts/install-awg.sh` over SSH to the RPi; DKMS build may take 10–30 min |
 | Config deploy | 5–9 | Render and deploy `awg0.conf` (mode 600), deploy `vpn-gateway.env` (mode 644), post-deploy file checks |
-| Routing deploy | 10–11 | SCP `routing.sh` to `/etc/routing.sh`, activate split-tunnel routing (unless `--no-run`) |
+| Routing deploy | 10–11 | SCP `routing.sh` to `/etc/splitgate/routing.sh`, activate split-tunnel routing (unless `--no-run`) |
 | Autostart | 12–13 | Deploy `vpn-routing.service`, reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot |
 | Cron + rollback | 14–16 | Deploy `update-vpn-routes`, write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh` |
 | Logging | 17–20 | Install dnsmasq (before config), deploy `dnsmasq.conf`, deploy `vpn-status.sh`, deploy `watch-routes.py` |
 | Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` if present; conditionally deploy `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
-| ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/asn-lookup.py` (Team Cymru bulk-whois helper for ORG enrichment) |
+| ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` (Team Cymru bulk-whois helper for ORG enrichment) |
 | Final activation | 24 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
 
 ### Run commands
@@ -150,7 +150,7 @@ bash src/deploy.sh --no-run
 If `--no-run` was used, activate routing manually later:
 
 ```bash
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
 
 ### AmneziaWG installer note
@@ -216,7 +216,7 @@ ssh pi4 "sudo iptables -L FORWARD -n -v | grep LOG"
 After generating some LAN traffic, run:
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh"
 ```
 
 Example output:
@@ -246,7 +246,7 @@ ssh pi4 "systemctl is-enabled vpn-routing.service" # expect: enabled
 
 ### vpn-status.sh
 
-`/etc/vpn-status.sh` reads journald for iptables `[VPN]`/`[ISP]` LOG entries, correlates with
+`/etc/splitgate/vpn-status.sh` reads journald for iptables `[VPN]`/`[ISP]` LOG entries, correlates with
 the dnsmasq query log to resolve destination IPs to domain names (with rDNS fallback via `host`),
 and prints a human-readable connection table. Output columns: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
 
@@ -257,29 +257,29 @@ The `ORG` column shows the ISP/org name for each destination IP via Team Cymru A
 Must be run as `sudo` — reads kernel journal and dnsmasq logs.
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh"
-ssh pi4 "sudo /etc/vpn-status.sh --via=vpn --last=100"
-ssh pi4 "sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --device=192.168.1.50 --filter=steam"
 
 # Show top-20 orgs by connection count, split by VPN/ISP:
-ssh pi4 "sudo /etc/vpn-status.sh --summary"
-ssh pi4 "sudo /etc/vpn-status.sh --summary --via=vpn"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --summary"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --summary --via=vpn"
 ```
 
 All flags compose: `--last`, `--filter`, `--device`, `--via`, `--summary` can be combined freely.
 
 ### watch-routes.py
 
-`/etc/watch-routes.py` is a real-time iptables log enricher. It spawns `journalctl -f -k` and
+`/etc/splitgate/watch-routes.py` is a real-time iptables log enricher. It spawns `journalctl -f -k` and
 parses `[VPN]`/`[ISP]` lines as they appear, resolving destination IPs via cached rDNS lookups.
-Each line is enriched with ` | {org}` via a background thread that queries `/etc/asn-lookup.py`
+Each line is enriched with ` | {org}` via a background thread that queries `/etc/splitgate/asn-lookup.py`
 without blocking the stream — the org suffix appears on subsequent re-prints of the same IP once
 the cache is warm. Press Ctrl+C to stop.
 
 ```bash
-ssh pi4 "sudo /etc/watch-routes.py"
-ssh pi4 "sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN"
-ssh pi4 "sudo /etc/watch-routes.py --no-asn"   # disable org enrichment
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py"
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN"
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --no-asn"   # disable org enrichment
 ```
 
 ### journald
@@ -318,7 +318,7 @@ a service (game server, CDN, streaming platform) whose IP range is not in the RU
 **Step 1: Identify traffic exiting via VPN that should use ISP**
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh --via=vpn"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn"
 ```
 
 Look for domains or IPs that you know should route via ISP. Note their destination IPs.
@@ -361,7 +361,7 @@ Note: `src/configs/white-list-extended.txt` is gitignored and will not be commit
 bash src/deploy.sh
 ```
 
-Stage 21 SCPs `src/configs/white-list-extended.txt` to `/etc/white-list-extended.txt` on the RPi.
+Stage 21 SCPs `src/configs/white-list-extended.txt` to `/etc/splitgate/white-list-extended.txt` on the RPi.
 Stage 23 re-runs `routing.sh`, which loads exception routes in Stage 5b.
 
 **Step 5: Verify**
@@ -374,7 +374,7 @@ ssh pi4 "ip route get <your-exception-ip>"
 Then confirm in `vpn-status.sh`:
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 # Your exception traffic should now appear here
 ```
 
@@ -385,17 +385,17 @@ ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
 Use this workflow when a CIDR range is incorrectly included in the RU IP list (e.g. a Google
 or Cloudflare range that iplist marks as RU) and you want it to route through the VPN.
 
-Unlike custom exceptions (`/etc/white-list-extended.txt`) which add ISP-bypass routes on top of
+Unlike custom exceptions (`/etc/splitgate/white-list-extended.txt`) which add ISP-bypass routes on top of
 the downloaded list, the exclusion filter removes CIDRs from the downloaded list at the source —
-they never appear in `/etc/white-list.txt` and therefore follow the default route (VPN).
+they never appear in `/etc/splitgate/white-list.txt` and therefore follow the default route (VPN).
 
 ### How it works
 
-When `/etc/ru-exclude.txt` is present on the RPi, `update-vpn-routes` appends
+When `/etc/splitgate/ru-exclude.txt` is present on the RPi, `update-vpn-routes` appends
 `&exclude[cidr4]=CIDR` query parameters to `RU_SUBNET_URL` before calling curl. The iplist
 service filters those ranges server-side. The downloaded file never contains the excluded CIDRs.
 
-If `/etc/ru-exclude.txt` is absent or empty, the download URL is unchanged — behavior is
+If `/etc/splitgate/ru-exclude.txt` is absent or empty, the download URL is unchanged — behavior is
 identical to before Phase 8.
 
 ### Setup
@@ -403,7 +403,7 @@ identical to before Phase 8.
 **Step 1: Identify CIDRs to exclude**
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 ```
 
 Look for traffic that should be routed via VPN but is exiting via ISP. Resolve the destination IP
@@ -432,16 +432,16 @@ documents the format.
 bash src/deploy.sh
 ```
 
-Stage 21 SCPs `src/configs/ru-exclude.txt` to `/etc/ru-exclude.txt` on the RPi.
+Stage 21 SCPs `src/configs/ru-exclude.txt` to `/etc/splitgate/ru-exclude.txt` on the RPi.
 
 **Step 4: Trigger a route rebuild**
 
 ```bash
-ssh pi4 "sudo /etc/update-vpn-routes"
+ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
 ```
 
 Because the exclusion changes the effective download URL, the new list will have a different SHA256
-from the existing `/etc/white-list.txt`, triggering an automatic route rebuild. Verify via:
+from the existing `/etc/splitgate/white-list.txt`, triggering an automatic route rebuild. Verify via:
 
 ```bash
 ssh pi4 "sudo journalctl -t vpn-routes -n 10 --no-pager"
@@ -459,10 +459,10 @@ ssh pi4 "ip route get <excluded-cidr-ip>"
 
 ## Rollback
 
-`/etc/vpn-rollback.sh` fully undoes the VPN gateway in one idempotent command.
+`/etc/splitgate/vpn-rollback.sh` fully undoes the VPN gateway in one idempotent command.
 
 ```bash
-ssh pi4 "sudo /etc/vpn-rollback.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 ```
 
 ### What rollback removes
@@ -473,17 +473,16 @@ ssh pi4 "sudo /etc/vpn-rollback.sh"
 - Removes MASQUERADE iptables rules on `awg0` + `eth0`
 - Removes iptables FORWARD ACCEPT and LOG rules
 - Removes `/etc/cron.d/vpn-routes`
-- Removes `/etc/white-list-extended.txt` (if present)
 - Restores the default route via `KEENETIC_GW` (`192.168.1.1`)
+- Removes `/usr/local/bin/splitgate` (D-18)
+- Removes `/etc/splitgate/` tree entirely — scripts, data files, env (D-18)
 
 ### What rollback preserves
 
 - `/etc/amnezia/amneziawg/awg0.conf` (mode 600) — VPN config kept for re-activation
-- `/etc/routing.sh` — script kept on disk
-- `/etc/white-list.txt` — downloaded RU subnet list kept
 - AmneziaWG packages — not uninstalled
 
-Note: `/etc/dnsmasq.conf` and `/etc/vpn-status.sh` remain on disk but dnsmasq is stopped.
+Note: `/etc/dnsmasq.conf` remains on disk (system file, not removed). dnsmasq is stopped.
 
 ### After rollback
 
@@ -530,38 +529,38 @@ bash src/deploy.sh
 bash src/deploy.sh --no-run
 
 # Activate routing after --no-run deploy
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
 
 ---
 
-### src/scripts/routing.sh (deployed to /etc/routing.sh)
+### src/scripts/routing.sh (deployed to /etc/splitgate/routing.sh)
 
-**Synopsis:** `sudo /etc/routing.sh [--no-update]`
+**Synopsis:** `sudo /etc/splitgate/routing.sh [--no-update]`
 
 Flush-and-rebuild split-tunnel routing. Idempotent — safe to re-run at any time.
 
 On each run: downloads RU CIDRs from `RU_SUBNET_URL` → flushes existing VPN routes →
 adds VPN server host route → adds RU CIDR routes via `KEENETIC_GW` → loads
-`/etc/white-list-extended.txt` (if present) → sets default route via `awg0` → configures
+`/etc/splitgate/white-list-extended.txt` (if present) → sets default route via `awg0` → configures
 MASQUERADE and iptables LOG rules → saves via `iptables-save`.
 
-Sources `/etc/vpn-gateway.env` for all variables.
+Sources `/etc/splitgate/vpn-gateway.env` for all variables.
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--no-update` | Skip downloading fresh RU subnets; use existing `/etc/white-list.txt`. Safe when the subnet file is current. Used by `update-vpn-routes` after an atomic file swap to avoid double-download. |
+| `--no-update` | Skip downloading fresh RU subnets; use existing `/etc/splitgate/white-list.txt`. Safe when the subnet file is current. Used by `update-vpn-routes` after an atomic file swap to avoid double-download. |
 
 **Examples:**
 
 ```bash
 # Full run with fresh RU subnet download
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 
 # Rebuild routes using existing subnet file (no download)
-ssh pi4 "sudo /etc/routing.sh --no-update"
+ssh pi4 "sudo /etc/splitgate/routing.sh --no-update"
 
 # Check result
 ssh pi4 "ip route show default"     # expect: default dev awg0
@@ -571,9 +570,9 @@ ssh pi4 "ip route get 77.88.8.8"    # expect: via 192.168.1.1
 
 ---
 
-### src/scripts/vpn-status.sh (deployed to /etc/vpn-status.sh)
+### src/scripts/vpn-status.sh (deployed to /etc/splitgate/vpn-status.sh)
 
-**Synopsis:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
+**Synopsis:** `sudo /etc/splitgate/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
 
 Reads journald `[VPN]`/`[ISP]` LOG entries, correlates with dnsmasq query log for domain
 resolution, falls back to rDNS (`host`). Output columns: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
@@ -601,32 +600,32 @@ All flags compose freely.
 
 ```bash
 # Show last 50 connections with ORG column (default)
-sudo /etc/vpn-status.sh
+sudo /etc/splitgate/vpn-status.sh
 
 # Show last 100 VPN-routed connections
-sudo /etc/vpn-status.sh --via=vpn --last=100
+sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100
 
 # Filter by device + domain keyword
-sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam
+sudo /etc/splitgate/vpn-status.sh --device=192.168.1.50 --filter=steam
 
 # Show only ISP-routed connections
-sudo /etc/vpn-status.sh --via=isp
+sudo /etc/splitgate/vpn-status.sh --via=isp
 
 # Top-20 orgs by total connection count
-sudo /etc/vpn-status.sh --summary
+sudo /etc/splitgate/vpn-status.sh --summary
 
 # Top orgs for a specific device, VPN-only
-sudo /etc/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
+sudo /etc/splitgate/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
 
 # Extend window when output is empty
-sudo /etc/vpn-status.sh --last=200
+sudo /etc/splitgate/vpn-status.sh --last=200
 ```
 
 ---
 
-### src/scripts/vpn-rollback.sh (deployed to /etc/vpn-rollback.sh)
+### src/scripts/vpn-rollback.sh (deployed to /etc/splitgate/vpn-rollback.sh)
 
-**Synopsis:** `sudo /etc/vpn-rollback.sh`
+**Synopsis:** `sudo /etc/splitgate/vpn-rollback.sh`
 
 No flags. Fully idempotent — safe to re-run.
 
@@ -634,7 +633,7 @@ No flags. Fully idempotent — safe to re-run.
 
 ```bash
 # Run rollback
-ssh pi4 "sudo /etc/vpn-rollback.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 
 # Verify default route restored
 ssh pi4 "ip route show default"
@@ -646,30 +645,30 @@ bash src/deploy.sh
 
 ---
 
-### src/scripts/update-vpn-routes (deployed to /etc/update-vpn-routes)
+### src/scripts/update-vpn-routes (deployed to /etc/splitgate/update-vpn-routes)
 
-**Synopsis:** `sudo /etc/update-vpn-routes`
+**Synopsis:** `sudo /etc/splitgate/update-vpn-routes`
 
 Normally called by cron daily at `CRON_UPDATE_HOUR:00` (default 5:00 AM). Can be run manually
 for a one-off update.
 
 Behavior:
-- Builds `EFFECTIVE_URL` from `RU_SUBNET_URL`; if `/etc/ru-exclude.txt` exists, appends
+- Builds `EFFECTIVE_URL` from `RU_SUBNET_URL`; if `/etc/splitgate/ru-exclude.txt` exists, appends
   `&exclude[cidr4]=CIDR` for each non-comment, non-blank line (see Exclusion Filter below)
 - Downloads RU subnet list to a temp file using `EFFECTIVE_URL`
-- SHA256-compares against existing `/etc/white-list.txt`
+- SHA256-compares against existing `/etc/splitgate/white-list.txt`
 - If hash matches: exits 0 (no rebuild, no disruption)
-- If hash differs: atomically swaps the file, then runs `/etc/routing.sh --no-update`
+- If hash differs: atomically swaps the file, then runs `/etc/splitgate/routing.sh --no-update`
 - If download fails: exits 0 (no cron failure mail; existing routes remain intact)
 - On download failure, also checks whether the VPN server host route is missing (carrier-change
   recovery) — if missing, rebuilds routes from the existing subnet file
 
 Logs via `logger -t "vpn-routes"` (visible in journald).
 
-**Exclusion Filter (`/etc/ru-exclude.txt`):**
+**Exclusion Filter (`/etc/splitgate/ru-exclude.txt`):**
 
 To route specific CIDR ranges through the VPN instead of the ISP (i.e., exclude them from the
-RU direct-route list), create `/etc/ru-exclude.txt` on the RPi with one CIDR per line:
+RU direct-route list), create `/etc/splitgate/ru-exclude.txt` on the RPi with one CIDR per line:
 
 ```text
 # Lines starting with # are ignored
@@ -688,26 +687,26 @@ Number of excluded CIDRs is logged: `journalctl -t vpn-routes | grep "Excluding"
 
 ```bash
 # Manual one-off run
-ssh pi4 "sudo /etc/update-vpn-routes"
+ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
 
 # Check result
 ssh pi4 "sudo journalctl -t vpn-routes -n 10 --no-pager"
 
 # Check cron schedule
 ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
-# Expected: 0 5 * * * root /etc/update-vpn-routes >> /var/log/vpn-routes.log 2>&1
+# Expected: 0 5 * * * root /etc/splitgate/update-vpn-routes >> /var/log/vpn-routes.log 2>&1
 ```
 
 ---
 
-### src/scripts/watch-routes.py (deployed to /etc/watch-routes.py)
+### src/scripts/watch-routes.py (deployed to /etc/splitgate/watch-routes.py)
 
-**Synopsis:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
+**Synopsis:** `sudo python3 /etc/splitgate/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
 
 Real-time iptables log enricher. Spawns `journalctl -f -k --no-pager -o short-iso` and
 parses `[VPN]`/`[ISP]` lines as they arrive. Resolves destination IPs via cached rDNS lookups
 (in-memory cache, 2-second timeout per lookup). Each line is also enriched with ` | {org}` via a
-background thread that calls `/etc/asn-lookup.py` without blocking the stream — lines print
+background thread that calls `/etc/splitgate/asn-lookup.py` without blocking the stream — lines print
 immediately; the org suffix appears once the cache is warm for that IP.
 
 Requires Python 3 (stdlib only — no pip dependencies).
@@ -725,23 +724,23 @@ Requires Python 3 (stdlib only — no pip dependencies).
 
 ```bash
 # Real-time view of all connections with org enrichment
-sudo /etc/watch-routes.py
+sudo python3 /etc/splitgate/watch-routes.py
 
 # Watch one device's VPN traffic only
-sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN
+sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN
 
 # Skip DNS lookups for faster output (useful during high traffic)
-sudo /etc/watch-routes.py --no-dns
+sudo python3 /etc/splitgate/watch-routes.py --no-dns
 
 # Watch all ISP-routed traffic without DNS or ASN lookup
-sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
+sudo python3 /etc/splitgate/watch-routes.py --tag ISP --no-dns --no-asn
 ```
 
 ---
 
-### src/scripts/asn-lookup.py (deployed to /etc/asn-lookup.py)
+### src/scripts/asn-lookup.py (deployed to /etc/splitgate/asn-lookup.py)
 
-**Synopsis:** `python3 /etc/asn-lookup.py [IPs...]`
+**Synopsis:** `python3 /etc/splitgate/asn-lookup.py [IPs...]`
 
 Shared Team Cymru bulk-whois helper. Reads IPv4 addresses from stdin (one per line) or from
 positional arguments, queries `whois.cymru.com:43` in a single batched TCP session, and writes a
@@ -757,14 +756,14 @@ Stdlib only — no pip dependencies.
 
 ```bash
 # Look up two IPs
-printf "8.8.8.8\n1.1.1.1\n" | python3 /etc/asn-lookup.py
+printf "8.8.8.8\n1.1.1.1\n" | python3 /etc/splitgate/asn-lookup.py
 
 # Direct CLI mode
-python3 /etc/asn-lookup.py 8.8.8.8
+python3 /etc/splitgate/asn-lookup.py 8.8.8.8
 
 # Force cache refresh (delete cache file first)
 rm -f /tmp/vpn-asn-cache.json
-printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
+printf "8.8.8.8\n" | python3 /etc/splitgate/asn-lookup.py
 ```
 
 ---
@@ -781,7 +780,7 @@ Symptom: All LAN device traffic is silently dropped after RPi is set as gateway.
 
 Cause: Docker (if installed on the RPi) sets the FORWARD chain default policy to DROP. Without explicit ACCEPT rules, no LAN traffic passes through the RPi.
 
-Fix: Re-run `sudo /etc/routing.sh` — Stage 7c adds `FORWARD -i eth0 ACCEPT` and `FORWARD RELATED,ESTABLISHED ACCEPT` rules. These are always re-applied by routing.sh on every run.
+Fix: Re-run `sudo /etc/splitgate/routing.sh` — Stage 7c adds `FORWARD -i eth0 ACCEPT` and `FORWARD RELATED,ESTABLISHED ACCEPT` rules. These are always re-applied by routing.sh on every run.
 
 ---
 
@@ -791,7 +790,7 @@ Symptom: `journalctl -k | grep -E '\[VPN\]|\[ISP\]'` returns nothing even after 
 
 Cause: LOG rules must be added to the FORWARD chain **before** ACCEPT rules. LOG is non-terminating (continues to the next rule); ACCEPT terminates. If ACCEPT is first, the LOG rule is never reached and no entries are written to journald.
 
-Fix: Re-run `sudo /etc/routing.sh` — Stage 7b adds LOG rules; Stage 7c adds ACCEPT rules in the correct order. Every run starts with a flush, so rule order is always correct after re-run.
+Fix: Re-run `sudo /etc/splitgate/routing.sh` — Stage 7b adds LOG rules; Stage 7c adds ACCEPT rules in the correct order. Every run starts with a flush, so rule order is always correct after re-run.
 
 ---
 
@@ -801,7 +800,7 @@ Symptom: Cannot reach `http://192.168.1.1` from LAN devices after RPi is configu
 
 Cause: An unconstrained MASQUERADE rule on `eth0` rewrites source IPs for all outbound traffic — including intra-LAN traffic to `192.168.1.1`. The router sees all requests as coming from `192.168.1.254` and blocks them.
 
-Fix: `routing.sh` Stage 7 uses `! -d LAN_SUBNET` in the eth0 MASQUERADE rule, which excludes intra-LAN traffic from MASQUERADE. Re-run `sudo /etc/routing.sh` to restore the correct rule.
+Fix: `routing.sh` Stage 7 uses `! -d LAN_SUBNET` in the eth0 MASQUERADE rule, which excludes intra-LAN traffic from MASQUERADE. Re-run `sudo /etc/splitgate/routing.sh` to restore the correct rule.
 
 ---
 
@@ -877,7 +876,7 @@ Fallback: `update-vpn-routes` also checks for a missing VPN server host route on
 If routes are currently missing and need manual recovery:
 
 ```bash
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
 
 See quick task `260523-nmr` in the Development Phases section for the full incident timeline.

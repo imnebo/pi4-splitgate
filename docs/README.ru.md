@@ -12,8 +12,8 @@ RPi выступает шлюзом по умолчанию для всех ус
 
 - **Трафик не к RU-адресам** выходит через VPN-туннель AmneziaWG (`awg0`).
 - **Российские IP-диапазоны** (загружаются ежедневно с `russia.iplist.opencck.org`) выходят напрямую через шлюз провайдера (роутер по адресу `192.168.1.1`).
-- **Пользовательские исключения** (`/etc/white-list-extended.txt`) позволяют принудительно направить дополнительные CIDR через провайдера.
-- **Фильтр исключений из списка РФ** (`/etc/ru-exclude.txt`) позволяет исключать отдельные CIDR-диапазоны из загружаемого списка РФ — такие диапазоны будут маршрутизироваться через VPN, а не через провайдера.
+- **Пользовательские исключения** (`/etc/splitgate/white-list-extended.txt`) позволяют принудительно направить дополнительные CIDR через провайдера.
+- **Фильтр исключений из списка РФ** (`/etc/splitgate/ru-exclude.txt`) позволяет исключать отдельные CIDR-диапазоны из загружаемого списка РФ — такие диапазоны будут маршрутизироваться через VPN, а не через провайдера.
 - **Маршрут к VPN-серверу** (`YOUR_VPN_SERVER_IP/32`) всегда сохраняется через провайдера, чтобы не возникало петли маршрутизации.
 
 Устройства в LAN получают RPi как шлюз по умолчанию через DHCP-опцию на роутере. Индивидуальная настройка устройств не требуется — разделение трафика полностью прозрачно.
@@ -32,7 +32,7 @@ RPi4 (192.168.1.254) — VPN-шлюз
   RU-подсети + исключения → eth0 → провайдер напрямую (через 192.168.1.1)
 ```
 
-Переменные окружения (из `/etc/vpn-gateway.env` на RPi; источник — `.env` в этом репозитории):
+Переменные окружения (из `/etc/splitgate/vpn-gateway.env` на RPi; источник — `.env` в этом репозитории):
 
 | Переменная | Значение | Описание |
 |------------|----------|----------|
@@ -111,12 +111,12 @@ cp .env.secrets.example .env.secrets
 | Предварительные проверки | 1–3 | Проверка обязательных локальных файлов, загрузка `.env` + `.env.secrets`, валидация ключей, проверка SSH-подключения |
 | Установка AmneziaWG | 4 | Потоковая передача `src/scripts/install-awg.sh` по SSH на RPi; сборка DKMS может занять 10–30 минут |
 | Развёртывание конфигурации | 5–9 | Генерация и развёртывание `awg0.conf` (права 600), развёртывание `vpn-gateway.env` (права 644), проверка файлов после развёртывания |
-| Развёртывание маршрутизации | 10–11 | SCP-копирование `routing.sh` в `/etc/routing.sh`, активация раздельной маршрутизации (если не указан `--no-run`) |
+| Развёртывание маршрутизации | 10–11 | SCP-копирование `routing.sh` в `/etc/splitgate/routing.sh`, активация раздельной маршрутизации (если не указан `--no-run`) |
 | Автозапуск | 12–13 | Развёртывание `vpn-routing.service`, перезагрузка systemd, включение `awg-quick@awg0` + `vpn-routing.service` при загрузке |
 | Cron + откат | 14–16 | Развёртывание `update-vpn-routes`, запись `/etc/cron.d/vpn-routes` (ежедневно в `CRON_UPDATE_HOUR:00`), развёртывание `vpn-rollback.sh` |
 | Логирование | 17–20 | Установка dnsmasq (до развёртывания конфига), развёртывание `dnsmasq.conf`, развёртывание `vpn-status.sh`, развёртывание `watch-routes.py` |
 | Исключения + NM | 21–22 | Условное развёртывание `white-list-extended.txt` (если файл присутствует); условное развёртывание `ru-exclude.txt` (если файл присутствует); развёртывание NM-диспетчера `10-vpn-routes` |
-| ASN-помощник | 23 | Развёртывание `asn-lookup.py` в `/etc/asn-lookup.py` (помощник Team Cymru bulk-whois для обогащения ORG) |
+| ASN-помощник | 23 | Развёртывание `asn-lookup.py` в `/etc/splitgate/asn-lookup.py` (помощник Team Cymru bulk-whois для обогащения ORG) |
 | Финальная активация | 24 | Повторный запуск `routing.sh` для применения всех правил iptables LOG и маршрутов исключений |
 
 ### Команды запуска
@@ -136,7 +136,7 @@ bash src/deploy.sh --no-run
 Если был использован `--no-run`, активируйте маршрутизацию вручную позже:
 
 ```bash
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
 
 ### Примечание об установщике AmneziaWG
@@ -199,7 +199,7 @@ ssh pi4 "sudo iptables -L FORWARD -n -v | grep LOG"
 После генерации трафика в LAN выполните:
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh"
 ```
 
 Пример вывода:
@@ -229,32 +229,32 @@ ssh pi4 "systemctl is-enabled vpn-routing.service" # ожидается: enabled
 
 ### vpn-status.sh
 
-`/etc/vpn-status.sh` читает journald в поисках записей iptables с метками `[VPN]`/`[ISP]`, сопоставляет их с журналом запросов dnsmasq для разрешения IP-адресов назначения в доменные имена (с резервным rDNS-поиском через `host`) и выводит человекочитаемую таблицу соединений. Столбцы: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
+`/etc/splitgate/vpn-status.sh` читает journald в поисках записей iptables с метками `[VPN]`/`[ISP]`, сопоставляет их с журналом запросов dnsmasq для разрешения IP-адресов назначения в доменные имена (с резервным rDNS-поиском через `host`) и выводит человекочитаемую таблицу соединений. Столбцы: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
 
 Столбец `ORG` показывает провайдера/организацию для каждого IP-адреса назначения через Team Cymru ASN (формат: `GOOGLE, US (AS15169)` или `-` если неизвестно). Результаты кешируются в `/tmp/vpn-asn-cache.json`.
 
 Должен запускаться от `sudo` — читает ядерный журнал и логи dnsmasq.
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh"
-ssh pi4 "sudo /etc/vpn-status.sh --via=vpn --last=100"
-ssh pi4 "sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --device=192.168.1.50 --filter=steam"
 
 # Топ-20 организаций по количеству соединений:
-ssh pi4 "sudo /etc/vpn-status.sh --summary"
-ssh pi4 "sudo /etc/vpn-status.sh --summary --via=vpn"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --summary"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --summary --via=vpn"
 ```
 
 Все флаги можно комбинировать: `--last`, `--filter`, `--device`, `--via`, `--summary` работают вместе в любом сочетании.
 
 ### watch-routes.py
 
-`/etc/watch-routes.py` — обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k` и разбирает строки `[VPN]`/`[ISP]` по мере их появления, разрешая IP-адреса назначения через кешированные rDNS-запросы. Каждая строка обогащается суффиксом ` | {org}` через фоновый поток, обращающийся к `/etc/asn-lookup.py`, без блокировки потока вывода. Для остановки нажмите Ctrl+C.
+`/etc/splitgate/watch-routes.py` — обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k` и разбирает строки `[VPN]`/`[ISP]` по мере их появления, разрешая IP-адреса назначения через кешированные rDNS-запросы. Каждая строка обогащается суффиксом ` | {org}` через фоновый поток, обращающийся к `/etc/splitgate/asn-lookup.py`, без блокировки потока вывода. Для остановки нажмите Ctrl+C.
 
 ```bash
-ssh pi4 "sudo /etc/watch-routes.py"
-ssh pi4 "sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN"
-ssh pi4 "sudo /etc/watch-routes.py --no-asn"   # отключить обогащение ORG
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py"
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN"
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --no-asn"   # отключить обогащение ORG
 ```
 
 ### journald
@@ -290,7 +290,7 @@ ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 **Шаг 1: Определите трафик, уходящий через VPN вместо провайдера**
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh --via=vpn"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn"
 ```
 
 Найдите домены или IP-адреса, которые должны маршрутизироваться через провайдера. Запишите IP-адреса назначения.
@@ -332,7 +332,7 @@ cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.t
 bash src/deploy.sh
 ```
 
-Шаг 21 копирует `src/configs/white-list-extended.txt` по SCP в `/etc/white-list-extended.txt` на RPi. Шаг 23 повторно запускает `routing.sh`, который загружает маршруты исключений на шаге 5b.
+Шаг 21 копирует `src/configs/white-list-extended.txt` по SCP в `/etc/splitgate/white-list-extended.txt` на RPi. Шаг 23 повторно запускает `routing.sh`, который загружает маршруты исключений на шаге 5b.
 
 **Шаг 5: Проверьте**
 
@@ -344,7 +344,7 @@ ssh pi4 "ip route get <ваш-ip-исключения>"
 Затем подтвердите в `vpn-status.sh`:
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 # Трафик вашего исключения должен теперь отображаться здесь
 ```
 
@@ -354,20 +354,20 @@ ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
 
 Используйте этот сценарий, когда CIDR-диапазон ошибочно включён в список РФ (например, диапазоны Google или Cloudflare, которые iplist помечает как российские), и вы хотите, чтобы трафик шёл через VPN.
 
-В отличие от пользовательских исключений (`/etc/white-list-extended.txt`), которые добавляют маршруты через провайдера поверх загруженного списка, фильтр исключений удаляет CIDR-диапазоны из загружаемого списка на уровне источника — они никогда не попадают в `/etc/white-list.txt` и следуют маршруту по умолчанию (VPN).
+В отличие от пользовательских исключений (`/etc/splitgate/white-list-extended.txt`), которые добавляют маршруты через провайдера поверх загруженного списка, фильтр исключений удаляет CIDR-диапазоны из загружаемого списка на уровне источника — они никогда не попадают в `/etc/splitgate/white-list.txt` и следуют маршруту по умолчанию (VPN).
 
 ### Принцип работы
 
-Если `/etc/ru-exclude.txt` присутствует на RPi, `update-vpn-routes` добавляет параметры `&exclude[cidr4]=CIDR` к `RU_SUBNET_URL` перед вызовом curl. Сервис iplist фильтрует эти диапазоны на своей стороне. Загруженный файл никогда не содержит исключённых CIDR-диапазонов.
+Если `/etc/splitgate/ru-exclude.txt` присутствует на RPi, `update-vpn-routes` добавляет параметры `&exclude[cidr4]=CIDR` к `RU_SUBNET_URL` перед вызовом curl. Сервис iplist фильтрует эти диапазоны на своей стороне. Загруженный файл никогда не содержит исключённых CIDR-диапазонов.
 
-Если `/etc/ru-exclude.txt` отсутствует или пуст, URL загрузки не изменяется.
+Если `/etc/splitgate/ru-exclude.txt` отсутствует или пуст, URL загрузки не изменяется.
 
 ### Настройка
 
 **Шаг 1: Определите CIDR-диапазоны для исключения**
 
 ```bash
-ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 ```
 
 Найдите трафик, который должен идти через VPN, но уходит через провайдера. Определите сетевой блок для нужного IP через `whois` или `ipinfo.io`.
@@ -394,12 +394,12 @@ cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
 bash src/deploy.sh
 ```
 
-Stage 21 скопирует `src/configs/ru-exclude.txt` на RPi как `/etc/ru-exclude.txt`.
+Stage 21 скопирует `src/configs/ru-exclude.txt` на RPi как `/etc/splitgate/ru-exclude.txt`.
 
 **Шаг 4: Обновление маршрутов**
 
 ```bash
-ssh pi4 "sudo /etc/update-vpn-routes"
+ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
 ```
 
 Так как исключения изменяют эффективный URL загрузки, новый список будет иметь другой SHA256, что автоматически запустит пересборку маршрутов.
@@ -420,10 +420,10 @@ ssh pi4 "ip route get <ip-из-исключённого-диапазона>"
 
 ## Откат
 
-`/etc/vpn-rollback.sh` полностью отменяет работу VPN-шлюза одной идемпотентной командой.
+`/etc/splitgate/vpn-rollback.sh` полностью отменяет работу VPN-шлюза одной идемпотентной командой.
 
 ```bash
-ssh pi4 "sudo /etc/vpn-rollback.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 ```
 
 ### Что удаляет откат
@@ -434,17 +434,16 @@ ssh pi4 "sudo /etc/vpn-rollback.sh"
 - Удаляет правила iptables MASQUERADE на `awg0` + `eth0`
 - Удаляет правила iptables FORWARD ACCEPT и LOG
 - Удаляет `/etc/cron.d/vpn-routes`
-- Удаляет `/etc/white-list-extended.txt` (если присутствует)
 - Восстанавливает маршрут по умолчанию через `KEENETIC_GW` (`192.168.1.1`)
+- Удаляет `/usr/local/bin/splitgate` (D-18)
+- Удаляет дерево `/etc/splitgate/` целиком — скрипты, файлы данных, env (D-18)
 
 ### Что откат сохраняет
 
 - `/etc/amnezia/amneziawg/awg0.conf` (права 600) — конфиг VPN сохраняется для повторной активации
-- `/etc/routing.sh` — скрипт остаётся на диске
-- `/etc/white-list.txt` — загруженный список RU-подсетей сохраняется
 - Пакеты AmneziaWG — не удаляются
 
-Примечание: `/etc/dnsmasq.conf` и `/etc/vpn-status.sh` остаются на диске, но dnsmasq останавливается.
+Примечание: `/etc/dnsmasq.conf` остаётся на диске (системный файл, не удаляется). dnsmasq останавливается.
 
 ### После отката
 
@@ -489,35 +488,35 @@ bash src/deploy.sh
 bash src/deploy.sh --no-run
 
 # Активировать маршрутизацию после развёртывания с --no-run
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
 
 ---
 
-### src/scripts/routing.sh (развёртывается в /etc/routing.sh)
+### src/scripts/routing.sh (развёртывается в /etc/splitgate/routing.sh)
 
-**Синтаксис:** `sudo /etc/routing.sh [--no-update]`
+**Синтаксис:** `sudo /etc/splitgate/routing.sh [--no-update]`
 
 Сброс и перестройка раздельной маршрутизации. Идемпотентен — безопасно запускать повторно в любой момент.
 
-При каждом запуске: загружает RU-подсети с `RU_SUBNET_URL` → сбрасывает существующие VPN-маршруты → добавляет маршрут к VPN-серверу → добавляет маршруты RU-подсетей через `KEENETIC_GW` → загружает `/etc/white-list-extended.txt` (если присутствует) → устанавливает маршрут по умолчанию через `awg0` → настраивает MASQUERADE и правила iptables LOG → сохраняет через `iptables-save`.
+При каждом запуске: загружает RU-подсети с `RU_SUBNET_URL` → сбрасывает существующие VPN-маршруты → добавляет маршрут к VPN-серверу → добавляет маршруты RU-подсетей через `KEENETIC_GW` → загружает `/etc/splitgate/white-list-extended.txt` (если присутствует) → устанавливает маршрут по умолчанию через `awg0` → настраивает MASQUERADE и правила iptables LOG → сохраняет через `iptables-save`.
 
-Загружает переменные из `/etc/vpn-gateway.env`.
+Загружает переменные из `/etc/splitgate/vpn-gateway.env`.
 
 **Флаги:**
 
 | Флаг | Описание |
 |------|----------|
-| `--no-update` | Пропустить загрузку свежего списка RU-подсетей; использовать существующий `/etc/white-list.txt`. Безопасно, когда файл подсетей актуален. Используется `update-vpn-routes` после атомарной замены файла, чтобы избежать двойной загрузки. |
+| `--no-update` | Пропустить загрузку свежего списка RU-подсетей; использовать существующий `/etc/splitgate/white-list.txt`. Безопасно, когда файл подсетей актуален. Используется `update-vpn-routes` после атомарной замены файла, чтобы избежать двойной загрузки. |
 
 **Примеры:**
 
 ```bash
 # Полный запуск с загрузкой свежего списка RU-подсетей
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 
 # Перестройка маршрутов с существующим файлом подсетей (без загрузки)
-ssh pi4 "sudo /etc/routing.sh --no-update"
+ssh pi4 "sudo /etc/splitgate/routing.sh --no-update"
 
 # Проверить результат
 ssh pi4 "ip route show default"     # ожидается: default dev awg0
@@ -527,9 +526,9 @@ ssh pi4 "ip route get 77.88.8.8"    # ожидается: via 192.168.1.1
 
 ---
 
-### src/scripts/vpn-status.sh (развёртывается в /etc/vpn-status.sh)
+### src/scripts/vpn-status.sh (развёртывается в /etc/splitgate/vpn-status.sh)
 
-**Синтаксис:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
+**Синтаксис:** `sudo /etc/splitgate/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
 
 Читает записи `[VPN]`/`[ISP]` из journald, сопоставляет с журналом запросов dnsmasq для разрешения доменных имён, использует rDNS (`host`) как резервный метод. Столбцы вывода: `TIMESTAMP SRC-IP DST-IP DOMAIN ORG PATH`.
 
@@ -553,32 +552,32 @@ ssh pi4 "ip route get 77.88.8.8"    # ожидается: via 192.168.1.1
 
 ```bash
 # Показать последние 50 соединений со столбцом ORG (по умолчанию)
-sudo /etc/vpn-status.sh
+sudo /etc/splitgate/vpn-status.sh
 
 # Показать последние 100 соединений через VPN
-sudo /etc/vpn-status.sh --via=vpn --last=100
+sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100
 
 # Фильтр по устройству + ключевое слово домена
-sudo /etc/vpn-status.sh --device=192.168.1.50 --filter=steam
+sudo /etc/splitgate/vpn-status.sh --device=192.168.1.50 --filter=steam
 
 # Показать только соединения через провайдера
-sudo /etc/vpn-status.sh --via=isp
+sudo /etc/splitgate/vpn-status.sh --via=isp
 
 # Топ-20 организаций по количеству соединений
-sudo /etc/vpn-status.sh --summary
+sudo /etc/splitgate/vpn-status.sh --summary
 
 # Топ организаций для конкретного устройства, только VPN
-sudo /etc/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
+sudo /etc/splitgate/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
 
 # Расширить окно, если вывод пустой
-sudo /etc/vpn-status.sh --last=200
+sudo /etc/splitgate/vpn-status.sh --last=200
 ```
 
 ---
 
-### src/scripts/vpn-rollback.sh (развёртывается в /etc/vpn-rollback.sh)
+### src/scripts/vpn-rollback.sh (развёртывается в /etc/splitgate/vpn-rollback.sh)
 
-**Синтаксис:** `sudo /etc/vpn-rollback.sh`
+**Синтаксис:** `sudo /etc/splitgate/vpn-rollback.sh`
 
 Без флагов. Полностью идемпотентен — безопасно запускать повторно.
 
@@ -586,7 +585,7 @@ sudo /etc/vpn-status.sh --last=200
 
 ```bash
 # Выполнить откат
-ssh pi4 "sudo /etc/vpn-rollback.sh"
+ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 
 # Проверить восстановление маршрута по умолчанию
 ssh pi4 "ip route show default"
@@ -598,28 +597,28 @@ bash src/deploy.sh
 
 ---
 
-### src/scripts/update-vpn-routes (развёртывается в /etc/update-vpn-routes)
+### src/scripts/update-vpn-routes (развёртывается в /etc/splitgate/update-vpn-routes)
 
-**Синтаксис:** `sudo /etc/update-vpn-routes`
+**Синтаксис:** `sudo /etc/splitgate/update-vpn-routes`
 
 Обычно вызывается cron ежедневно в `CRON_UPDATE_HOUR:00` (по умолчанию 5:00). Можно запустить вручную для разовой принудительной загрузки.
 
 Поведение:
-- Строит `EFFECTIVE_URL` из `RU_SUBNET_URL`; если `/etc/ru-exclude.txt` существует, добавляет
+- Строит `EFFECTIVE_URL` из `RU_SUBNET_URL`; если `/etc/splitgate/ru-exclude.txt` существует, добавляет
   `&exclude[cidr4]=CIDR` для каждой строки без комментариев и пустых строк (см. Фильтр исключений ниже)
 - Загружает список RU-подсетей во временный файл через `EFFECTIVE_URL`
-- Сравнивает SHA256-хеш с существующим `/etc/white-list.txt`
+- Сравнивает SHA256-хеш с существующим `/etc/splitgate/white-list.txt`
 - Если хеши совпадают: завершается с кодом 0 (без перестройки и без прерывания работы)
-- Если хеши различаются: атомарно заменяет файл, затем запускает `/etc/routing.sh --no-update`
+- Если хеши различаются: атомарно заменяет файл, затем запускает `/etc/splitgate/routing.sh --no-update`
 - Если загрузка не удалась: завершается с кодом 0 (без уведомлений об ошибках cron; существующие маршруты остаются нетронутыми)
 - При сбое загрузки также проверяет, не пропал ли маршрут к VPN-серверу (восстановление после смены carrier) — если пропал, перестраивает маршруты из существующего файла подсетей
 
 Логирует через `logger -t "vpn-routes"` (видно в journald).
 
-**Фильтр исключений (`/etc/ru-exclude.txt`):**
+**Фильтр исключений (`/etc/splitgate/ru-exclude.txt`):**
 
 Чтобы маршрутизировать определённые CIDR-диапазоны через VPN вместо ISP (т.е. исключить их из
-списка прямых RU-маршрутов), создайте `/etc/ru-exclude.txt` на RPi с одним CIDR на строку:
+списка прямых RU-маршрутов), создайте `/etc/splitgate/ru-exclude.txt` на RPi с одним CIDR на строку:
 
 ```text
 # Строки, начинающиеся с #, игнорируются
@@ -638,23 +637,23 @@ bash src/deploy.sh
 
 ```bash
 # Ручной разовый запуск
-ssh pi4 "sudo /etc/update-vpn-routes"
+ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
 
 # Проверить результат
 ssh pi4 "sudo journalctl -t vpn-routes -n 10 --no-pager"
 
 # Проверить расписание cron
 ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
-# Ожидается: 0 5 * * * root /etc/update-vpn-routes >> /var/log/vpn-routes.log 2>&1
+# Ожидается: 0 5 * * * root /etc/splitgate/update-vpn-routes >> /var/log/vpn-routes.log 2>&1
 ```
 
 ---
 
-### src/scripts/watch-routes.py (развёртывается в /etc/watch-routes.py)
+### src/scripts/watch-routes.py (развёртывается в /etc/splitgate/watch-routes.py)
 
-**Синтаксис:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
+**Синтаксис:** `sudo python3 /etc/splitgate/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
 
-Обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k --no-pager -o short-iso` и разбирает строки `[VPN]`/`[ISP]` по мере их поступления. Разрешает IP-адреса назначения через кешированные rDNS-запросы. Каждая строка дополняется суффиксом ` | {org}` через фоновый поток, обращающийся к `/etc/asn-lookup.py`, — поток журнала не блокируется. Для остановки нажмите Ctrl+C.
+Обогатитель логов iptables в реальном времени. Запускает `journalctl -f -k --no-pager -o short-iso` и разбирает строки `[VPN]`/`[ISP]` по мере их поступления. Разрешает IP-адреса назначения через кешированные rDNS-запросы. Каждая строка дополняется суффиксом ` | {org}` через фоновый поток, обращающийся к `/etc/splitgate/asn-lookup.py`, — поток журнала не блокируется. Для остановки нажмите Ctrl+C.
 
 Требует Python 3 (только стандартная библиотека — без pip-зависимостей).
 
@@ -671,23 +670,23 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 ```bash
 # Просмотр всех соединений с обогащением организаций
-sudo /etc/watch-routes.py
+sudo python3 /etc/splitgate/watch-routes.py
 
 # Наблюдение за VPN-трафиком одного устройства
-sudo /etc/watch-routes.py --src 192.168.1.50 --tag VPN
+sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN
 
 # Без DNS-запросов для более быстрого вывода (полезно при высоком трафике)
-sudo /etc/watch-routes.py --no-dns
+sudo python3 /etc/splitgate/watch-routes.py --no-dns
 
 # Наблюдение за всем трафиком через провайдера без DNS и ASN
-sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
+sudo python3 /etc/splitgate/watch-routes.py --tag ISP --no-dns --no-asn
 ```
 
 ---
 
-### src/scripts/asn-lookup.py (развёртывается в /etc/asn-lookup.py)
+### src/scripts/asn-lookup.py (развёртывается в /etc/splitgate/asn-lookup.py)
 
-**Синтаксис:** `python3 /etc/asn-lookup.py [IP...]`
+**Синтаксис:** `python3 /etc/splitgate/asn-lookup.py [IP...]`
 
 Общий помощник Team Cymru bulk-whois. Читает IPv4-адреса из stdin (по одному на строку) или из позиционных аргументов, отправляет один пакетный TCP-запрос к `whois.cymru.com:43` и выводит JSON-словарь `{"<ip>": {"asn": "<цифры>", "org": "<название>"}}` в stdout.
 
@@ -699,14 +698,14 @@ sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
 
 ```bash
 # Поиск двух IP
-printf "8.8.8.8\n1.1.1.1\n" | python3 /etc/asn-lookup.py
+printf "8.8.8.8\n1.1.1.1\n" | python3 /etc/splitgate/asn-lookup.py
 
 # Прямой режим CLI
-python3 /etc/asn-lookup.py 8.8.8.8
+python3 /etc/splitgate/asn-lookup.py 8.8.8.8
 
 # Принудительное обновление кеша
 rm -f /tmp/vpn-asn-cache.json
-printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
+printf "8.8.8.8\n" | python3 /etc/splitgate/asn-lookup.py
 ```
 
 ---
@@ -723,7 +722,7 @@ printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
 
 Причина: Docker (если установлен на RPi) устанавливает политику по умолчанию для цепочки FORWARD равной DROP. Без явных правил ACCEPT никакой трафик LAN не проходит через RPi.
 
-Решение: Повторно запустите `sudo /etc/routing.sh` — шаг 7c добавляет правила `FORWARD -i eth0 ACCEPT` и `FORWARD RELATED,ESTABLISHED ACCEPT`. Эти правила всегда заново применяются при каждом запуске routing.sh.
+Решение: Повторно запустите `sudo /etc/splitgate/routing.sh` — шаг 7c добавляет правила `FORWARD -i eth0 ACCEPT` и `FORWARD RELATED,ESTABLISHED ACCEPT`. Эти правила всегда заново применяются при каждом запуске routing.sh.
 
 ---
 
@@ -733,7 +732,7 @@ printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
 
 Причина: Правила LOG должны добавляться в цепочку FORWARD **перед** правилами ACCEPT. LOG — нетерминирующее действие (продолжает к следующему правилу); ACCEPT — терминирующее. Если ACCEPT стоит первым, правило LOG никогда не достигается и записи в journald не пишутся.
 
-Решение: Повторно запустите `sudo /etc/routing.sh` — шаг 7b добавляет правила LOG; шаг 7c добавляет правила ACCEPT в правильном порядке. Каждый запуск начинается со сброса правил, поэтому порядок всегда корректен после повторного запуска.
+Решение: Повторно запустите `sudo /etc/splitgate/routing.sh` — шаг 7b добавляет правила LOG; шаг 7c добавляет правила ACCEPT в правильном порядке. Каждый запуск начинается со сброса правил, поэтому порядок всегда корректен после повторного запуска.
 
 ---
 
@@ -743,7 +742,7 @@ printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
 
 Причина: Неограниченное правило MASQUERADE на `eth0` перезаписывает исходные IP-адреса для всего исходящего трафика — включая трафик внутри LAN к адресу `192.168.1.1`. Роутер видит все запросы как исходящие от `192.168.1.254` и блокирует их.
 
-Решение: `routing.sh` на шаге 7 использует `! -d LAN_SUBNET` в правиле MASQUERADE для eth0, исключая внутрисетевой трафик из MASQUERADE. Повторно запустите `sudo /etc/routing.sh`, чтобы восстановить правильное правило.
+Решение: `routing.sh` на шаге 7 использует `! -d LAN_SUBNET` в правиле MASQUERADE для eth0, исключая внутрисетевой трафик из MASQUERADE. Повторно запустите `sudo /etc/splitgate/routing.sh`, чтобы восстановить правильное правило.
 
 ---
 
@@ -819,7 +818,7 @@ ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 Если маршруты уже пропали и требуется ручное восстановление:
 
 ```bash
-ssh pi4 "sudo /etc/routing.sh"
+ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
 
 Подробная хронология инцидента — в задаче `260523-nmr` в разделе «Этапы разработки».
