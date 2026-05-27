@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — macOS-side deploy orchestrator for RPi VPN Gateway (Phase 1 + 2)
+# deploy.sh — macOS-side deploy orchestrator for RPi VPN Gateway (Phase 1 + 2 + Phase 10)
 #
 # Decisions honored:
 #   D-04: SSH_HOST=pi4 via system SSH config (no hardcoded IP)
@@ -15,13 +15,16 @@
 # Usage:
 #   1. Copy .env.secrets.example to .env.secrets and fill in your 44-char base64 keys
 #   2. Ensure ~/.ssh/config has a 'pi4' host alias (SSH key auth, user ar)
-#   3. Run: ./deploy.sh [--no-run]
+#   3. Run: bash src/deploy.sh [--no-run]
 #
 # This script deploys:
 #   - AmneziaWG (via scripts/install-awg.sh over SSH)
 #   - /etc/amnezia/amneziawg/awg0.conf (CONF-01, mode 0600 root:root)
-#   - /etc/vpn-gateway.env (CONF-02, mode 0644 root:root)
-#   - /etc/routing.sh (D-11, split-tunnel routing + NAT)
+#   - /etc/splitgate/vpn-gateway.env (CONF-02, mode 0644 root:root)
+#   - /etc/splitgate/routing.sh (D-11, split-tunnel routing + NAT)
+#   - /etc/splitgate/ namespace (all app scripts, configs, data files — Phase 10 D-01)
+#   - /usr/local/bin/splitgate (Phase 10 D-13, ergonomic CLI dispatcher)
+#   - /etc/logrotate.d/vpn-gateway (Phase 10 D-11, log rotation config for /etc/splitgate/logs/)
 #
 # After deploy completes, bring up the tunnel manually:
 #   ssh pi4 "sudo awg-quick up awg0"
@@ -35,44 +38,52 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 # ─── Configuration (D-04, D-09) ─────────────────────────────────────────────
 TEMPLATE="configs/amnezia.key.template.txt"
 AWG_CONF_REMOTE="/etc/amnezia/amneziawg/awg0.conf"
-ENV_REMOTE="/etc/vpn-gateway.env"
+ENV_REMOTE="/etc/splitgate/vpn-gateway.env"
 INSTALLER_SCRIPT="scripts/install-awg.sh"
 ROUTING_SH_LOCAL="scripts/routing.sh"
-ROUTING_SH_REMOTE="/etc/routing.sh"
+ROUTING_SH_REMOTE="/etc/splitgate/routing.sh"
 ROUTING_SH_TMP="/tmp/routing.sh"
 VPN_ROUTING_SERVICE_LOCAL="systemd/vpn-routing.service"
 VPN_ROUTING_SERVICE_REMOTE="/etc/systemd/system/vpn-routing.service"
 VPN_ROUTING_SERVICE_TMP="/tmp/vpn-routing.service.tmp"
 UPDATE_VPN_ROUTES_LOCAL="scripts/update-vpn-routes"
-UPDATE_VPN_ROUTES_REMOTE="/etc/update-vpn-routes"
+UPDATE_VPN_ROUTES_REMOTE="/etc/splitgate/update-vpn-routes"
 UPDATE_VPN_ROUTES_TMP="/tmp/update-vpn-routes.tmp"
 CRON_FILE_REMOTE="/etc/cron.d/vpn-routes"
 VPN_ROLLBACK_LOCAL="scripts/vpn-rollback.sh"
-VPN_ROLLBACK_REMOTE="/etc/vpn-rollback.sh"
+VPN_ROLLBACK_REMOTE="/etc/splitgate/vpn-rollback.sh"
 VPN_ROLLBACK_TMP="/tmp/vpn-rollback.sh.tmp"
 DNSMASQ_CONF_LOCAL="configs/dnsmasq.conf"
 DNSMASQ_CONF_REMOTE="/etc/dnsmasq.conf"
 DNSMASQ_CONF_TMP="/tmp/dnsmasq.conf.tmp"
 VPN_STATUS_LOCAL="scripts/vpn-status.sh"
-VPN_STATUS_REMOTE="/etc/vpn-status.sh"
+VPN_STATUS_REMOTE="/etc/splitgate/vpn-status.sh"
 VPN_STATUS_TMP="/tmp/vpn-status.sh.tmp"
 WATCH_ROUTES_LOCAL="scripts/watch-routes.py"
-WATCH_ROUTES_REMOTE="/etc/watch-routes.py"
+WATCH_ROUTES_REMOTE="/etc/splitgate/watch-routes.py"
 WATCH_ROUTES_TMP="/tmp/watch-routes.py.tmp"
 ASN_LOOKUP_LOCAL="scripts/asn-lookup.py"
-ASN_LOOKUP_REMOTE="/etc/asn-lookup.py"
+ASN_LOOKUP_REMOTE="/etc/splitgate/asn-lookup.py"
 ASN_LOOKUP_TMP="/tmp/asn-lookup.py.tmp"
 WHITE_LIST_EXT_LOCAL="configs/white-list-extended.txt"
-WHITE_LIST_EXT_REMOTE="/etc/white-list-extended.txt"
+WHITE_LIST_EXT_REMOTE="/etc/splitgate/white-list-extended.txt"
 WHITE_LIST_EXT_TMP="/tmp/white-list-extended.tmp"
 EXCLUDE_LIST_LOCAL="configs/ru-exclude.txt"
-EXCLUDE_LIST_REMOTE="/etc/ru-exclude.txt"
+EXCLUDE_LIST_REMOTE="/etc/splitgate/ru-exclude.txt"
 EXCLUDE_LIST_TMP="/tmp/ru-exclude.tmp"
 NM_DISPATCHER_LOCAL="scripts/10-vpn-routes"
 NM_DISPATCHER_REMOTE="/etc/NetworkManager/dispatcher.d/10-vpn-routes"
 NM_DISPATCHER_TMP="/tmp/10-vpn-routes.tmp"
+SPLITGATE_DIR_REMOTE="/etc/splitgate"
+SPLITGATE_LOGS_REMOTE="/etc/splitgate/logs"
+SPLITGATE_DISPATCHER_LOCAL="scripts/splitgate"
+SPLITGATE_DISPATCHER_REMOTE="/usr/local/bin/splitgate"
+SPLITGATE_DISPATCHER_TMP="/tmp/splitgate.tmp"
+LOGROTATE_CONF_LOCAL="configs/logrotate-vpn-gateway"
+LOGROTATE_CONF_REMOTE="/etc/logrotate.d/vpn-gateway"
+LOGROTATE_CONF_TMP="/tmp/logrotate-vpn-gateway.tmp"
 
-TOTAL_STAGES=24
+TOTAL_STAGES=27
 
 # ─── Argument Parsing (D-12) ─────────────────────────────────────────────────
 RUN_ROUTING=true
@@ -155,6 +166,14 @@ if [[ ! -f "$ASN_LOOKUP_LOCAL" ]]; then
 fi
 if [[ ! -f "$NM_DISPATCHER_LOCAL" ]]; then
     echo "ERROR: $NM_DISPATCHER_LOCAL not found — run as: bash src/deploy.sh" >&2
+    exit 1
+fi
+if [[ ! -f "$SPLITGATE_DISPATCHER_LOCAL" ]]; then
+    echo "ERROR: $SPLITGATE_DISPATCHER_LOCAL not found — run as: bash src/deploy.sh" >&2
+    exit 1
+fi
+if [[ ! -f "$LOGROTATE_CONF_LOCAL" ]]; then
+    echo "ERROR: $LOGROTATE_CONF_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 
@@ -454,7 +473,7 @@ echo "   ip route get 8.8.8.8                            # expect dev awg0 (fore
 echo "   sudo iptables -t nat -L POSTROUTING -n -v       # expect MASQUERADE on awg0 + eth0"
 echo ""
 echo " If --no-run was used, activate routing manually:"
-echo "   ssh pi4 \"sudo /etc/routing.sh\""
+echo "   ssh pi4 \"sudo /etc/splitgate/routing.sh\""
 echo ""
 echo " Phase 3 autostart verification (run after deploy):"
 echo "   ssh pi4 \"systemctl is-active awg-quick@awg0\"       # expect: active"
@@ -465,42 +484,42 @@ echo "   # Reboot test: ssh pi4 sudo reboot; wait 60s; re-run is-active checks"
 echo ""
 echo " Phase 3 cron verification:"
 echo "   ssh pi4 \"sudo cat /etc/cron.d/vpn-routes\""
-echo "   # expect: 0 ${CRON_UPDATE_HOUR} * * * root /etc/update-vpn-routes >> /var/log/vpn-routes.log 2>&1"
+echo "   # expect: 0 ${CRON_UPDATE_HOUR} * * * root /etc/splitgate/update-vpn-routes >> /var/log/vpn-routes.log 2>&1"
 echo "   ssh pi4 \"sudo ls -l /etc/cron.d/vpn-routes\""
 echo "   # expect: -rw-r--r-- root root"
-echo "   ssh pi4 \"sudo /etc/update-vpn-routes\""
+echo "   ssh pi4 \"sudo /etc/splitgate/update-vpn-routes\""
 echo "   # one-off manual run; expect exit 0"
 echo "   ssh pi4 \"sudo journalctl -t vpn-routes -n 20 --no-pager\""
 echo "   # expect syslog entries from the manual run"
 echo ""
 echo " Rollback (when needed):"
-echo "   ssh pi4 \"sudo /etc/vpn-rollback.sh\""
+echo "   ssh pi4 \"sudo /etc/splitgate/vpn-rollback.sh\""
 echo "   # After rollback: ip route show default → default via 192.168.1.1"
-echo "   # To re-activate: ./deploy.sh  (re-installs everything; awg0.conf preserved)"
+echo "   # To re-activate: bash src/deploy.sh  (re-installs everything; awg0.conf preserved)"
 echo ""
 echo " Phase 4 verification:"
 echo "   ssh pi4 \"sudo iptables -L FORWARD -n -v | grep LOG\""
 echo "   # expect: two LOG rules — [VPN] on awg0, [ISP] on eth0"
 echo "   ssh pi4 \"sudo systemctl is-active dnsmasq\""
 echo "   # expect: active"
-echo "   ssh pi4 \"sudo /etc/vpn-status.sh\""
+echo "   ssh pi4 \"sudo /etc/splitgate/vpn-status.sh\""
 echo "   # expect: table header + connection rows (generate LAN traffic first)"
 echo "   ssh pi4 \"sudo journalctl -k -n 20 --no-pager | grep -E '\[VPN\]|\[ISP\]'\""
 echo "   # expect: kernel lines with SRC= DST= and [VPN] or [ISP] prefix"
 echo "   sudo ${WATCH_ROUTES_REMOTE} --src <device-ip>"
 echo "   # real-time enriched view: [VPN]/[ISP] + reverse-DNS hostnames"
 echo "   # Idempotency check (must not duplicate LOG rules):"
-echo "   ssh pi4 \"sudo /etc/routing.sh && sudo iptables -L FORWARD -n -v | grep -c LOG\""
+echo "   ssh pi4 \"sudo /etc/splitgate/routing.sh && sudo iptables -L FORWARD -n -v | grep -c LOG\""
 echo "   # expect: 2"
 echo "   # Keenetic manual step: Home network -> Segments -> DNS server -> 192.168.1.254"
 echo "   # Without this dnsmasq won't receive queries and domain column shows raw IPs"
 echo ""
 echo " Phase 5 verification:"
-echo "   ssh pi4 \"sudo /etc/vpn-status.sh --via=vpn\""
+echo "   ssh pi4 \"sudo /etc/splitgate/vpn-status.sh --via=vpn\""
 echo "   # expect: only rows with VPN in the PATH column (or empty if no VPN traffic)"
-echo "   ssh pi4 \"sudo /etc/vpn-status.sh --via=isp\""
+echo "   ssh pi4 \"sudo /etc/splitgate/vpn-status.sh --via=isp\""
 echo "   # expect: only rows with ISP in the PATH column"
-echo "   ssh pi4 \"ls -l /etc/white-list-extended.txt 2>/dev/null || echo 'no exception file present'\""
-echo "   ssh pi4 \"sudo /etc/routing.sh && ip route get <YOUR-EXCEPTION-CIDR-IP>\""
+echo "   ssh pi4 \"ls -l /etc/splitgate/white-list-extended.txt 2>/dev/null || echo 'no exception file present'\""
+echo "   ssh pi4 \"sudo /etc/splitgate/routing.sh && ip route get <YOUR-EXCEPTION-CIDR-IP>\""
 echo "   # expect: route via 192.168.1.1 (KEENETIC_GW) for any IP inside an exception CIDR"
 echo "================================================================"
