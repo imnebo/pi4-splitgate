@@ -1,0 +1,31 @@
+# configs/ru-exclude.txt.example
+#
+# PURPOSE: Operator-defined CIDR ranges to exclude from the downloaded RU IP list.
+# When /etc/ru-exclude.txt is present on the RPi, update-vpn-routes appends
+# &exclude[cidr4]=CIDR query parameters to RU_SUBNET_URL before the curl download,
+# so those ranges are filtered server-side and never appear in /etc/white-list.txt.
+# Excluded CIDRs are therefore routed through the VPN (not the ISP).
+#
+# FORMAT: One CIDR per line. Lines starting with # are comments and are skipped.
+# Blank lines are skipped. No inline comments after a CIDR — the whole line is
+# used as-is in the URL query parameter.
+#
+# HOW TO USE:
+#   1. Run: ssh pi4 "sudo /etc/vpn-status.sh --via=isp" to identify IPs exiting
+#      via ISP that should go through the VPN (e.g. Google, Cloudflare ranges
+#      that iplist incorrectly marks as RU).
+#   2. Resolve the destination IP to a CIDR (e.g. via whois or ipinfo.io).
+#   3. Copy this file to configs/ru-exclude.txt:
+#        cp configs/ru-exclude.txt.example configs/ru-exclude.txt
+#      (Note: configs/ru-exclude.txt is gitignored — it will NOT be committed.)
+#   4. Add your CIDRs to configs/ru-exclude.txt (one per line, whole-line # comments only).
+#   5. Run: ./deploy.sh — Stage 21 will SCP the file to /etc/ru-exclude.txt on the RPi.
+#      The next update-vpn-routes run (cron or manual) will fetch the filtered list.
+#
+# NOTE: Changing the exclusion list changes the effective download URL, which changes
+# the SHA256 of the downloaded file. The next update-vpn-routes run will detect the
+# hash mismatch and rebuild routes automatically — no manual intervention needed.
+#
+# EXAMPLE ENTRIES (commented out — remove the leading # to activate):
+# 142.250.0.0/16
+# 142.251.0.0/16
