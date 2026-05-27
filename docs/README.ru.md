@@ -466,6 +466,75 @@ bash src/deploy.sh
 
 ---
 
+## splitgate CLI
+
+`splitgate` — удобный диспетчер, установленный в `/usr/local/bin/splitgate`, который запускает пять основных инструментов без необходимости вводить полный путь. Развёртывается `deploy.sh` на шаге 26.
+
+| Команда | Запускает |
+|---------|-----------|
+| `splitgate status [аргументы...]` | `sudo /etc/splitgate/vpn-status.sh [аргументы...]` |
+| `splitgate watch [аргументы...]` | `sudo python3 /etc/splitgate/watch-routes.py [аргументы...]` |
+| `splitgate rollback [аргументы...]` | `sudo /etc/splitgate/vpn-rollback.sh [аргументы...]` |
+| `splitgate routing [аргументы...]` | `sudo /etc/splitgate/routing.sh [аргументы...]` |
+| `splitgate update [аргументы...]` | `sudo /etc/splitgate/update-vpn-routes [аргументы...]` |
+
+Запуск `splitgate` без аргументов (или с неизвестной подкомандой) выводит `Usage: splitgate {status|watch|rollback|routing|update} [args...]` и завершается с кодом 1.
+
+**Примеры:**
+
+```bash
+# Проверить статус маршрутизации
+ssh pi4 "splitgate status"
+ssh pi4 "splitgate status --via=vpn --last=100"
+
+# Просмотр трафика в реальном времени
+ssh pi4 "splitgate watch"
+
+# Выполнить откат
+ssh pi4 "splitgate rollback"
+
+# Перестроить маршруты
+ssh pi4 "splitgate routing --no-update"
+
+# Принудительное обновление маршрутов
+ssh pi4 "splitgate update"
+```
+
+---
+
+## Структура файловой системы на RPi
+
+После развёртывания Phase 10 файловая система RPi организована следующим образом:
+
+```
+/etc/splitgate/
+├── routing.sh
+├── vpn-rollback.sh
+├── vpn-status.sh
+├── update-vpn-routes
+├── watch-routes.py
+├── asn-lookup.py
+├── vpn-gateway.env
+├── white-list.txt          (генерируется в процессе работы)
+├── white-list-extended.txt (опционально)
+├── ru-exclude.txt          (опционально)
+└── logs/                   (создаётся при развёртывании; Phase 9 запишет vpn-gateway.log сюда)
+
+/usr/local/bin/splitgate    (диспетчер CLI)
+/etc/logrotate.d/vpn-gateway (ротация /etc/splitgate/logs/vpn-gateway.log)
+```
+
+Файлы, которые намеренно остаются в системных расположениях (требуется демоном-потребителем):
+
+- `/etc/systemd/system/vpn-routing.service` — systemd требует точного пути
+- `/etc/cron.d/vpn-routes` — cron-демон требует точного пути
+- `/etc/dnsmasq.conf` — dnsmasq требует точного пути
+- `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — NM-диспетчер требует точного пути
+- `/etc/iptables/rules.v4` — iptables-persistent требует точного пути
+- `/etc/amnezia/amneziawg/awg0.conf` — AmneziaWG требует точного пути
+
+---
+
 ## Справочник по скриптам
 
 ### src/deploy.sh
@@ -839,6 +908,7 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"
 | 6 | Документация | Операционный руководство: развёртывание, проверка, откат, добавление исключений | [.planning/phases/06-documentation/](.planning/phases/06-documentation/) |
 | 7 | Обогащение ASN и атрибуция трафика | Обогатить vpn-status.sh и watch-routes.py атрибуцией провайдера/организации через Team Cymru | [.planning/phases/07-asn-enrichment-traffic-attribution/](.planning/phases/07-asn-enrichment-traffic-attribution/) |
 | 8 | Фильтр исключений из списка РФ | Исключение заданных CIDR-диапазонов из загружаемого списка РФ для маршрутизации через VPN | [.planning/phases/08-ru-ip-list-exclusion-filter/](.planning/phases/08-ru-ip-list-exclusion-filter/) |
+| 10 | Эргономика Splitgate | Все файлы RPi сгруппированы в `/etc/splitgate/`, добавлен диспетчер CLI `splitgate`, добавлена ротация логов для `/etc/splitgate/logs/vpn-gateway.log` | [.planning/phases/10-splitgate-ergonomics/](.planning/phases/10-splitgate-ergonomics/) |
 
 ### Быстрые задачи
 

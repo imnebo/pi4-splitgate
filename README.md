@@ -506,6 +506,75 @@ freshly rendered copy from your template + `.env.secrets`.
 
 ---
 
+## splitgate CLI
+
+`splitgate` is the ergonomic dispatcher installed at `/usr/local/bin/splitgate` that runs the five core tools without typing their full paths. Deployed by `deploy.sh` Stage 26.
+
+| Command | Runs |
+|---------|------|
+| `splitgate status [args...]` | `sudo /etc/splitgate/vpn-status.sh [args...]` |
+| `splitgate watch [args...]` | `sudo python3 /etc/splitgate/watch-routes.py [args...]` |
+| `splitgate rollback [args...]` | `sudo /etc/splitgate/vpn-rollback.sh [args...]` |
+| `splitgate routing [args...]` | `sudo /etc/splitgate/routing.sh [args...]` |
+| `splitgate update [args...]` | `sudo /etc/splitgate/update-vpn-routes [args...]` |
+
+Running `splitgate` with no arguments (or an unknown subcommand) prints `Usage: splitgate {status|watch|rollback|routing|update} [args...]` and exits 1.
+
+**Examples:**
+
+```bash
+# Check routing status
+ssh pi4 "splitgate status"
+ssh pi4 "splitgate status --via=vpn --last=100"
+
+# Watch real-time traffic
+ssh pi4 "splitgate watch"
+
+# Run rollback
+ssh pi4 "splitgate rollback"
+
+# Rebuild routes
+ssh pi4 "splitgate routing --no-update"
+
+# Trigger manual route update
+ssh pi4 "splitgate update"
+```
+
+---
+
+## Filesystem Layout on the RPi
+
+After Phase 10 deploy, the RPi filesystem is organized as follows:
+
+```
+/etc/splitgate/
+├── routing.sh
+├── vpn-rollback.sh
+├── vpn-status.sh
+├── update-vpn-routes
+├── watch-routes.py
+├── asn-lookup.py
+├── vpn-gateway.env
+├── white-list.txt          (generated at runtime)
+├── white-list-extended.txt (optional)
+├── ru-exclude.txt          (optional)
+└── logs/                   (created at deploy; Phase 9 writes vpn-gateway.log here)
+
+/usr/local/bin/splitgate    (dispatcher CLI)
+/etc/logrotate.d/vpn-gateway (rotates /etc/splitgate/logs/vpn-gateway.log)
+```
+
+Files that intentionally stay at system locations (required by their consuming daemon):
+
+- `/etc/systemd/system/vpn-routing.service` — systemd requires exact path
+- `/etc/cron.d/vpn-routes` — cron daemon requires exact path
+- `/etc/dnsmasq.conf` — dnsmasq requires exact path
+- `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — NM dispatcher requires exact path
+- `/etc/iptables/rules.v4` — iptables-persistent requires exact path
+- `/etc/amnezia/amneziawg/awg0.conf` — AmneziaWG requires exact path
+
+---
+
 ## Script CLI Reference
 
 ### src/deploy.sh
@@ -897,6 +966,7 @@ See quick task `260523-nmr` in the Development Phases section for the full incid
 | 6 | Documentation | Ops runbook: deploy, verify, rollback, add exceptions | [.planning/phases/06-documentation/](.planning/phases/06-documentation/) |
 | 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org attribution via Team Cymru | [.planning/phases/07-asn-enrichment-traffic-attribution/](.planning/phases/07-asn-enrichment-traffic-attribution/) |
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from the downloaded RU list so they route via VPN | [.planning/phases/08-ru-ip-list-exclusion-filter/](.planning/phases/08-ru-ip-list-exclusion-filter/) |
+| 10 | Splitgate Ergonomics | Consolidated all RPi files under `/etc/splitgate/`, added `splitgate` dispatcher CLI, added log rotation for `/etc/splitgate/logs/vpn-gateway.log` | [.planning/phases/10-splitgate-ergonomics/](.planning/phases/10-splitgate-ergonomics/) |
 
 ### Quick Tasks
 
