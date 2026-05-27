@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 8 complete — all plans done
-stopped_at: Phase 8 complete — 3/3 plans executed
-last_updated: "2026-05-27T13:19:19.252Z"
+status: Phase 10 in progress — 1/4 plans done
+stopped_at: "10-00-PLAN.md complete — src/ restructure done"
+last_updated: "2026-05-27T17:08:00Z"
 progress:
   total_phases: 10
   completed_phases: 8
-  total_plans: 23
-  completed_plans: 20
+  total_plans: 24
+  completed_plans: 21
   percent: 80
 ---
 
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 8: RU IP List Exclusion Filter — COMPLETE ✓**
+**Phase 10: Splitgate Ergonomics — IN PROGRESS (1/4 plans)**
 
-EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs complete 2026-05-27.
+10-00 complete: all source dirs moved to src/; deploy.sh updated for auto-navigation; .gitignore and READMEs updated. Next: 10-01, 10-02 (Wave 1).
 
 ## Phase Progress
 
@@ -41,7 +41,7 @@ EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs 
 | 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
 | 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
 | 9 — Operational Logging | ◆ Planned | 0/? | 0% |
-| 10 — Splitgate Ergonomics & Organization | ◆ Planned | 0/4 | 0% |
+| 10 — Splitgate Ergonomics & Organization | ◆ In Progress | 1/4 | 25% |
 
 ## Requirements
 
@@ -78,6 +78,8 @@ EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs 
 - Phase 7 D-10: deploy.sh Stage 23 deploys asn-lookup.py; Stage 24 activates routing.sh — routing activation remains last runtime stage
 - Phase 8 D-05/D-06: EFFECTIVE_URL initialized to RU_SUBNET_URL; /etc/ru-exclude.txt lines appended as &exclude[cidr4]=CIDR; absent/empty file → URL unchanged
 - Phase 8 D-07/D-08: EXCLUDE_LIST_LOCAL=configs/ru-exclude.txt; Stage 21b conditional SCP to /etc/ru-exclude.txt (chmod 644, root:root); no TOTAL_STAGES bump (remains 24); configs/ru-exclude.txt gitignored
+- Phase 10 D-10-00-01: cd dirname BASH_SOURCE[0] in src/deploy.sh — all *_LOCAL relative paths resolve to src/ subdirectories without modification
+- Phase 10 D-10-00-02: .env/.env.secrets accessed via ../ prefix from src/; root .gitignore gains src/configs/ prefix on previously bare configs/ entries
 
 ## Hardware Verified
 
@@ -88,9 +90,9 @@ EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs 
 
 ## Last Session
 
-**Stopped at:** Phase 8 complete — 3/3 plans executed
-**Timestamp:** 2026-05-27T15:45:00Z
-**Resume:** Phase 8 complete. EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, ru-exclude.txt.example + docs done. Next: Phase 9 (Operational Logging) or Phase 6 (Documentation).
+**Stopped at:** Phase 10 Plan 00 complete — src/ restructure done
+**Timestamp:** 2026-05-27T17:08:00Z
+**Resume:** 10-00 done. All source moved to src/. Wave 1 plans 10-01 and 10-02 next (RPi path migration + deploy.sh parallel execution).
 
 ---
 *Initialized: 2026-05-18*

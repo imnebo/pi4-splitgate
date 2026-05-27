@@ -19,7 +19,7 @@
 | 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org via Team Cymru | ✓ Complete |
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from downloaded RU list so they route via VPN | ✓ Complete |
 | 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
-| 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/; add splitgate dispatcher | ◆ Planned |
+| 10 | 1/4 | In Progress|  |
 
 ---
 
@@ -271,13 +271,13 @@ Plans:
 **Goal:** Consolidate all RPi app files under `/etc/splitgate/` (branded namespace); move Phase 9 logs to `/etc/splitgate/logs/`; add `/usr/local/bin/splitgate` dispatcher with subcommands: `status`, `watch`, `rollback`, `routing`, `update`
 **Requirements**: None mapped (UX/ergonomics phase — pure path consolidation + dispatcher CLI; no new v1 requirements)
 **Depends on:** Phase 9 (logrotate stanza targets the Phase 9 log path under the new namespace)
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 
 **Wave 0 (prerequisite):**
 
-- [ ] 10-00-PLAN.md — Move all source files into `src/` subdirectory via `git mv`; update `src/deploy.sh` to auto-cd to its own directory + update `.env`/TEMPLATE paths; update `.gitignore` for `src/configs/` prefix
+- [x] 10-00-PLAN.md — Move all source files into `src/` subdirectory via `git mv`; update `src/deploy.sh` to auto-cd to its own directory + update `.env`/TEMPLATE paths; update `.gitignore` for `src/configs/` prefix
 
 **Wave 1 (parallel — disjoint file sets, after Wave 0):**
 
