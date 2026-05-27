@@ -6,9 +6,9 @@
 /awg0.conf
 
 # Phase 5: user-defined ISP-bypass exceptions — never commit
-configs/white-list-extended.txt
+src/configs/white-list-extended.txt
 # Phase 8: operator CIDR exclusion list — never commit
-configs/ru-exclude.txt
+src/configs/ru-exclude.txt
 
 # Python bytecode cache
 __pycache__/
