@@ -4,7 +4,7 @@ watch-routes.py — Real-time iptables log enricher for the RPi VPN gateway.
 
 Reads journalctl -f -k output, parses [VPN]/[ISP] LOG lines emitted by
 iptables FORWARD rules in routing.sh, performs cached reverse-DNS lookups
-and background ASN/org lookups via /etc/asn-lookup.py, and prints enriched
+and background ASN/org lookups via /etc/splitgate/asn-lookup.py, and prints enriched
 human-readable output.
 
 Usage:
@@ -13,7 +13,7 @@ Usage:
 Requirements: stdlib only — no pip dependencies.
 
 ASN enrichment: Each destination IP is looked up asynchronously via a daemon
-background thread that invokes /etc/asn-lookup.py as a subprocess. The live
+background thread that invokes /etc/splitgate/asn-lookup.py as a subprocess. The live
 journalctl stream never blocks — if the lookup is still in flight the line
 is printed without the '| org' suffix, and the suffix appears on the next
 matching line for the same IP once the result is cached.
@@ -43,7 +43,7 @@ socket.setdefaulttimeout(2.0)
 #   {"asn": "...", "org": "..."}  : resolved successfully
 _asn_cache: dict = {}
 _asn_lock = threading.Lock()
-ASN_LOOKUP_PATH = "/etc/asn-lookup.py"
+ASN_LOOKUP_PATH = "/etc/splitgate/asn-lookup.py"
 ASN_SUBPROCESS_TIMEOUT = 5.0
 
 

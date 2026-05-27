@@ -2,20 +2,20 @@
 # scripts/routing.sh
 #
 # RPi-side split-tunnel routing + NAT setup.
-# Deployed to /etc/routing.sh by deploy.sh Phase 2 stage (D-11).
-# Run via: sudo bash /etc/routing.sh
-#          sudo bash /etc/routing.sh --no-update
+# Deployed to /etc/splitgate/routing.sh by deploy.sh Phase 2 stage (D-11).
+# Run via: sudo bash /etc/splitgate/routing.sh
+#          sudo bash /etc/splitgate/routing.sh --no-update
 #
 # Decisions honored:
 #   D-01 — Routes go into the main routing table (no custom policy tables, no ip rule)
-#   D-02 — RU subnets saved to /etc/white-list.txt (one CIDR per line)
+#   D-02 — RU subnets saved to /etc/splitgate/white-list.txt (one CIDR per line)
 #   D-03 — Always attempts fresh download from $RU_SUBNET_URL on each run
 #   D-04 — Download failure fallback: use existing file if present; abort if missing
-#   D-05 — --no-update flag: skip download, use existing /etc/white-list.txt
+#   D-05 — --no-update flag: skip download, use existing /etc/splitgate/white-list.txt
 #   D-06 — Flush-and-rebuild: delete all awg0 routes + VPN server host route, then rebuild
 #   D-07 — iptables idempotency: iptables -C check before every iptables -A
 #   D-08 — Single script: download, flush, routes, NAT, iptables-persistent (all in one)
-#   D-08(P5) — Stage 5b loads /etc/white-list-extended.txt if present (silent skip if absent)
+#   D-08(P5) — Stage 5b loads /etc/splitgate/white-list-extended.txt if present (silent skip if absent)
 #   D-09 — Default route via awg0 set by this script (ROUT-04)
 #   D-10 — NAT iptables rules configured inside this script (NAT-01, NAT-02)
 #
@@ -25,7 +25,7 @@
 #   T-02-04 — set -euo pipefail; no eval; no dynamic command construction from downloaded data
 #   T-02-05 — iptables-persistent installed via DEBIAN_FRONTEND=noninteractive apt-get
 #
-# Variables sourced from /etc/vpn-gateway.env (deployed by Phase 1):
+# Variables sourced from /etc/splitgate/vpn-gateway.env (deployed by Phase 1):
 #   KEENETIC_GW      — ISP gateway (Keenetic router LAN IP, e.g. 192.168.1.1)
 #   VPN_SERVER_IP    — AmneziaWG server IP (e.g. YOUR_VPN_SERVER_IP)
 #   VPN_IFACE        — VPN tunnel interface (e.g. awg0)
@@ -35,8 +35,8 @@
 set -euo pipefail
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-WHITE_LIST_FILE="/etc/white-list.txt"
-EXCEPTIONS_FILE="/etc/white-list-extended.txt"
+WHITE_LIST_FILE="/etc/splitgate/white-list.txt"
+EXCEPTIONS_FILE="/etc/splitgate/white-list-extended.txt"
 SUBNET_TMP="/tmp/ru-subnets.tmp"
 IPTABLES_RULES="/etc/iptables/rules.v4"
 
@@ -58,16 +58,16 @@ for arg in "$@"; do
 done
 
 # ─── Source environment (D-01 through D-10) ──────────────────────────────────
-# /etc/vpn-gateway.env is deployed by Phase 1 (deploy.sh Stage H, CONF-02).
+# /etc/splitgate/vpn-gateway.env is deployed by Phase 1 (deploy.sh Stage H, CONF-02).
 # It contains: KEENETIC_GW, VPN_SERVER_IP, VPN_IFACE, LAN_SUBNET, RU_SUBNET_URL
-if [[ ! -f /etc/vpn-gateway.env ]]; then
-    err "/etc/vpn-gateway.env not found — run deploy.sh Phase 1 first"
+if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
+    err "/etc/splitgate/vpn-gateway.env not found — run deploy.sh Phase 1 first"
     exit 1
 fi
 # shellcheck source=/dev/null
-source /etc/vpn-gateway.env
+source /etc/splitgate/vpn-gateway.env
 
-log "Environment sourced from /etc/vpn-gateway.env"
+log "Environment sourced from /etc/splitgate/vpn-gateway.env"
 log "  VPN_IFACE:    ${VPN_IFACE}"
 log "  VPN_SERVER_IP: ${VPN_SERVER_IP}"
 log "  KEENETIC_GW:  ${KEENETIC_GW}"
@@ -161,7 +161,7 @@ done < "${WHITE_LIST_FILE}"
 log "RU subnet routes added: ${ADDED} routes via ${KEENETIC_GW}"
 
 # ─── Stage 5b: Load exception CIDRs from EXCEPTIONS_FILE (D-05, D-08(P5)) ────
-# If /etc/white-list-extended.txt is present, add each CIDR via KEENETIC_GW.
+# If /etc/splitgate/white-list-extended.txt is present, add each CIDR via KEENETIC_GW.
 # Absence of the file is a normal state — skip silently with a log message (D-05).
 # T-05-01: CIDRs passed as args to ip route add — no eval; malformed entries
 #          suppressed by 2>/dev/null || true (same trust model as Stage 5 T-02-02).

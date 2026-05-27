@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# /etc/vpn-status.sh — VPN Gateway Connection Visibility Tool
+# /etc/splitgate/vpn-status.sh — VPN Gateway Connection Visibility Tool
 #
 # Query script that reads journald for iptables [VPN]/[ISP] LOG entries, correlates
 # with dnsmasq query log to resolve destination IPs to domain names, and presents a
 # readable connection table with filtering flags.
 #
-# Deployed path: /etc/vpn-status.sh (chmod +x)
+# Deployed path: /etc/splitgate/vpn-status.sh (chmod +x)
 # Run as:        sudo vpn-status.sh
 #                sudo vpn-status.sh --filter=steam
 #                sudo vpn-status.sh --device=192.168.1.50
@@ -13,13 +13,13 @@
 #                sudo vpn-status.sh --summary
 #                sudo vpn-status.sh --summary --device=192.168.1.50 --via=vpn
 #
-# Decisions honored: D-11 (deployed to /etc/vpn-status.sh, run as sudo),
+# Decisions honored: D-11 (deployed to /etc/splitgate/vpn-status.sh, run as sudo),
 #   D-12 (default 50 entries; columns: timestamp, src-ip, dst-ip, domain, VPN/ISP),
 #   D-13 (domain: dnsmasq log correlation first, rDNS fallback via host),
 #   D-14 (--filter: partial case-insensitive domain match),
 #   D-15 (--device: filter by source LAN device IP),
 #   D-16 (--last: override default entry count),
-#   D-17 (set -euo pipefail, source /etc/vpn-gateway.env, logger -t "vpn-status"),
+#   D-17 (set -euo pipefail, source /etc/splitgate/vpn-gateway.env, logger -t "vpn-status"),
 #   D-03 (Phase 7: single ASN lookup call seeded with all unique DST IPs),
 #   D-06 (Phase 7: ORG column after DOMAIN, format "{org} (AS{asn})" or "-"),
 #   D-07 (Phase 7: --summary flag, ORG|VPN_COUNT|ISP_COUNT|TOTAL, top 20 by TOTAL)
@@ -36,13 +36,13 @@ log() { logger -t "vpn-status" "$*"; }
 err() { echo "[vpn-status] ERROR: $*" >&2; }
 
 # ─── Source environment ───────────────────────────────────────────────────────
-# /etc/vpn-gateway.env is deployed by Phase 1. Provides VPN_IFACE and other vars.
-if [[ ! -f /etc/vpn-gateway.env ]]; then
-    err "/etc/vpn-gateway.env not found — cannot determine interface configuration"
+# /etc/splitgate/vpn-gateway.env is deployed by Phase 1. Provides VPN_IFACE and other vars.
+if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
+    err "/etc/splitgate/vpn-gateway.env not found — cannot determine interface configuration"
     exit 1
 fi
 # shellcheck source=/dev/null
-source /etc/vpn-gateway.env
+source /etc/splitgate/vpn-gateway.env
 
 # ─── Defaults ────────────────────────────────────────────────────────────────
 LAST=50
@@ -190,8 +190,8 @@ for _entry in "${entries[@]}"; do
 done
 unset _seen_ips
 
-if [[ ${#unique_ips[@]} -gt 0 ]] && [[ -f /etc/asn-lookup.py ]] && command -v python3 >/dev/null 2>&1; then
-    asn_json=$(printf '%s\n' "${unique_ips[@]}" | python3 /etc/asn-lookup.py 2>/dev/null || true)
+if [[ ${#unique_ips[@]} -gt 0 ]] && [[ -f /etc/splitgate/asn-lookup.py ]] && command -v python3 >/dev/null 2>&1; then
+    asn_json=$(printf '%s\n' "${unique_ips[@]}" | python3 /etc/splitgate/asn-lookup.py 2>/dev/null || true)
     if [[ -n "${asn_json}" ]]; then
         while IFS='=' read -r _ip _label; do
             [[ -n "${_ip}" ]] && org_map["${_ip}"]="${_label}"

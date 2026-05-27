@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# /etc/update-vpn-routes
+# /etc/splitgate/update-vpn-routes
 #
 # Checksum-based daily RU subnet refresh for the VPN split-tunnel gateway.
 #
 # Requirement:  AUTO-03 — routing.sh runs daily via /etc/cron.d/vpn-routes
-# Decisions:    D-06 (sha256 checksum compare), D-07 (deploy target /etc/update-vpn-routes),
+# Decisions:    D-06 (sha256 checksum compare), D-07 (deploy target /etc/splitgate/update-vpn-routes),
 #               D-09 (syslog via logger -t "vpn-routes")
 # Driven by:    /etc/cron.d/vpn-routes (written by deploy.sh Stage 15 from CRON_UPDATE_HOUR)
 #
 # On download failure: exit 0 (no cron failure mail; existing routes remain intact)
 # On hash match:       exit 0 (no rebuild; no connection disruption)
-# On hash mismatch:    mv temp → /etc/white-list.txt; run /etc/routing.sh --no-update
+# On hash mismatch:    mv temp → /etc/splitgate/white-list.txt; run /etc/splitgate/routing.sh --no-update
 # On rebuild failure:  set -e propagates; cron generates failure mail (acceptable — rebuild failure IS an error)
 
 set -euo pipefail
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-SUBNET_FILE="/etc/white-list.txt"
+SUBNET_FILE="/etc/splitgate/white-list.txt"
 # Distinct from routing.sh's /tmp/ru-subnets.tmp to avoid collisions if cron
 # runs while an operator is also running routing.sh manually.
 SUBNET_TMP="/tmp/ru-subnets-cron.tmp"
@@ -25,20 +25,20 @@ SUBNET_TMP="/tmp/ru-subnets-cron.tmp"
 log() { logger -t "vpn-routes" "$*"; }
 
 # ─── Source environment ───────────────────────────────────────────────────────
-# /etc/vpn-gateway.env is deployed by Phase 1 (deploy.sh Stage H, CONF-02).
+# /etc/splitgate/vpn-gateway.env is deployed by Phase 1 (deploy.sh Stage H, CONF-02).
 # Provides: RU_SUBNET_URL (and other vars not used here).
-if [[ ! -f /etc/vpn-gateway.env ]]; then
-    log "ERROR: /etc/vpn-gateway.env not found — cannot determine RU_SUBNET_URL"
+if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
+    log "ERROR: /etc/splitgate/vpn-gateway.env not found — cannot determine RU_SUBNET_URL"
     exit 1
 fi
 # shellcheck source=/dev/null
-source /etc/vpn-gateway.env
+source /etc/splitgate/vpn-gateway.env
 
 # ─── Build effective download URL (D-05, D-06) ───────────────────────────────
-# If /etc/ru-exclude.txt exists and is non-empty, append &exclude[cidr4]=CIDR
+# If /etc/splitgate/ru-exclude.txt exists and is non-empty, append &exclude[cidr4]=CIDR
 # for each non-comment non-blank line. Absent or empty file → URL unchanged.
 EFFECTIVE_URL="${RU_SUBNET_URL}"
-EXCLUDE_FILE="/etc/ru-exclude.txt"
+EXCLUDE_FILE="/etc/splitgate/ru-exclude.txt"
 if [[ -f "${EXCLUDE_FILE}" ]]; then
     exclude_count=0
     while IFS= read -r line; do
@@ -62,7 +62,7 @@ if ! curl -fsSL "${EFFECTIVE_URL}" -o "${SUBNET_TMP}" 2>/dev/null; then
     # (e.g. by NetworkManager after eth0 carrier-changed). Rebuild from existing file.
     if [[ -f "${SUBNET_FILE}" ]] && ! ip route show | grep -q "${VPN_SERVER_IP}"; then
         log "VPN server host route missing — rebuilding routes from existing ${SUBNET_FILE}"
-        /etc/routing.sh --no-update
+        /etc/splitgate/routing.sh --no-update
         log "Route rebuild complete"
     fi
     exit 0  # Pattern 3: exit 0 on download failure — do NOT generate cron failure mail
@@ -92,6 +92,6 @@ mv "${SUBNET_TMP}" "${SUBNET_FILE}"
 # --no-update: skip re-download; use the file we just mv'd into place
 # Non-zero exit from routing.sh propagates via set -e → cron generates failure mail
 # (acceptable: a rebuild failure IS an error worth notifying about)
-/etc/routing.sh --no-update
+/etc/splitgate/routing.sh --no-update
 
 log "Route rebuild complete"
