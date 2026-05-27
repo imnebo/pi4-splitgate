@@ -29,8 +29,11 @@
 
 set -euo pipefail
 
+# Navigate to script's own directory so all *_LOCAL relative paths resolve correctly.
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 # ─── Configuration (D-04, D-09) ─────────────────────────────────────────────
-TEMPLATE="amnezia.key.template.txt"
+TEMPLATE="configs/amnezia.key.template.txt"
 AWG_CONF_REMOTE="/etc/amnezia/amneziawg/awg0.conf"
 ENV_REMOTE="/etc/vpn-gateway.env"
 INSTALLER_SCRIPT="scripts/install-awg.sh"
@@ -101,12 +104,12 @@ validate_key() {
 # ─── Stage A: Preflight file checks ─────────────────────────────────────────
 echo "[1/${TOTAL_STAGES}] Preflight: checking required files..."
 
-if [[ ! -f .env ]]; then
-    echo "ERROR: .env not found — this file should be committed in the repo" >&2
+if [[ ! -f ../.env ]]; then
+    echo "ERROR: ../.env not found — this file should be committed in the repo" >&2
     exit 1
 fi
-if [[ ! -f .env.secrets ]]; then
-    echo "ERROR: .env.secrets not found" >&2
+if [[ ! -f ../.env.secrets ]]; then
+    echo "ERROR: ../.env.secrets not found" >&2
     echo "       Copy .env.secrets.example to .env.secrets and fill in your real keys" >&2
     exit 1
 fi
@@ -115,43 +118,43 @@ if [[ ! -f "$TEMPLATE" ]]; then
     exit 1
 fi
 if [[ ! -f "$INSTALLER_SCRIPT" ]]; then
-    echo "ERROR: $INSTALLER_SCRIPT not found — run from the repo root" >&2
+    echo "ERROR: $INSTALLER_SCRIPT not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$ROUTING_SH_LOCAL" ]]; then
-    echo "ERROR: $ROUTING_SH_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $ROUTING_SH_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$VPN_ROUTING_SERVICE_LOCAL" ]]; then
-    echo "ERROR: $VPN_ROUTING_SERVICE_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $VPN_ROUTING_SERVICE_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$UPDATE_VPN_ROUTES_LOCAL" ]]; then
-    echo "ERROR: $UPDATE_VPN_ROUTES_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $UPDATE_VPN_ROUTES_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$VPN_ROLLBACK_LOCAL" ]]; then
-    echo "ERROR: $VPN_ROLLBACK_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $VPN_ROLLBACK_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$DNSMASQ_CONF_LOCAL" ]]; then
-    echo "ERROR: $DNSMASQ_CONF_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $DNSMASQ_CONF_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$VPN_STATUS_LOCAL" ]]; then
-    echo "ERROR: $VPN_STATUS_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $VPN_STATUS_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$WATCH_ROUTES_LOCAL" ]]; then
-    echo "ERROR: $WATCH_ROUTES_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $WATCH_ROUTES_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$ASN_LOOKUP_LOCAL" ]]; then
-    echo "ERROR: $ASN_LOOKUP_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $ASN_LOOKUP_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 if [[ ! -f "$NM_DISPATCHER_LOCAL" ]]; then
-    echo "ERROR: $NM_DISPATCHER_LOCAL not found — run from the repo root" >&2
+    echo "ERROR: $NM_DISPATCHER_LOCAL not found — run as: bash src/deploy.sh" >&2
     exit 1
 fi
 
@@ -159,9 +162,9 @@ echo "       All required files present."
 
 # ─── Stage B: Source env files ───────────────────────────────────────────────
 # shellcheck source=/dev/null
-source .env
+source ../.env
 # shellcheck source=/dev/null
-source .env.secrets
+source ../.env.secrets
 # Keys are now in memory as shell variables; never echoed or logged.
 
 # Validate CRON_UPDATE_HOUR before it is used in Stage 15 (T-03-12: prevent injection)
@@ -244,7 +247,7 @@ echo "       awg0.conf deployed with chmod 600 + chown root:root (T-01-PERM)."
 echo "[7/${TOTAL_STAGES}] Deploying vpn-gateway.env to ${SSH_HOST}:${ENV_REMOTE}..."
 
 # .env contains no secrets — 644 is correct; sourced by Phase 2 routing scripts as root
-scp .env "${SSH_HOST}:/tmp/vpn-gateway.env.tmp"
+scp ../.env "${SSH_HOST}:/tmp/vpn-gateway.env.tmp"
 ssh "$SSH_HOST" "sudo mv /tmp/vpn-gateway.env.tmp ${ENV_REMOTE} && \
                  sudo chmod 644 ${ENV_REMOTE} && \
                  sudo chown root:root ${ENV_REMOTE}"
