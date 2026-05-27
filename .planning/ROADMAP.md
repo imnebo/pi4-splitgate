@@ -1,21 +1,25 @@
 # Roadmap: RPi VPN Gateway
 
 **Created:** 2026-05-18
-**Phases:** 6
+**Phases:** 10
 **Requirements mapped:** 20/20 ✓
 
 ---
 
 ## Overview
 
-| # | Phase | Goal | Requirements | Success Criteria |
-|---|-------|------|--------------|------------------|
-| 1 | Foundation & Config | AmneziaWG running, config deployed | INST-01, INST-02, CONF-01, CONF-02 | 4 |
-| 2 | Routing & NAT | Split-tunnel routing active, LAN devices NATed through RPi | ROUT-01–04, NAT-01–03 | 6 |
-| 3 | Autostart, Cron & Rollback | Survives reboots, daily refresh, one-command rollback | AUTO-01–03, ROLL-01–02, VRFY-01–04 | 4 |
-| 4 | Traffic Logging & Visibility | 3/3 | Complete   | 2026-05-21 |
-| 5 | Custom Route Exceptions | 2/2 | Complete   | 2026-05-21 |
-| 6 | Documentation | Ops runbook: deploy, verify, rollback, add exceptions — one source of truth | TBD | TBD |
+| # | Phase | Goal | Status |
+|---|-------|------|--------|
+| 1 | Foundation & Config | AmneziaWG running, config deployed | ✓ Complete |
+| 2 | Routing & NAT | Split-tunnel routing active, LAN devices NATed through RPi | ✓ Complete |
+| 3 | Autostart, Cron & Rollback | Survives reboots, daily refresh, one-command rollback | ✓ Complete |
+| 4 | Traffic Logging & Visibility | Per-connection VPN/ISP routing decisions logged and queryable | ✓ Complete |
+| 5 | Custom Route Exceptions | Per-CIDR ISP-bypass exceptions on top of auto-downloaded RU list | ✓ Complete |
+| 6 | Documentation | Ops runbook: deploy, verify, rollback, add exceptions | ◆ Planned |
+| 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org via Team Cymru | ✓ Complete |
+| 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from downloaded RU list so they route via VPN | ✓ Complete |
+| 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
+| 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/; add splitgate dispatcher | ○ Pending |
 
 ---
 
