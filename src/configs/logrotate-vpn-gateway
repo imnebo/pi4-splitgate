@@ -1,0 +1,10 @@
+# src/configs/logrotate-vpn-gateway — deployed to /etc/logrotate.d/vpn-gateway (D-11, D-19). Phase 10.
+/etc/splitgate/logs/vpn-gateway.log {
+    daily
+    rotate 14
+    compress
+    dateext
+    missingok
+    notifempty
+    create 0640 root root
+}
