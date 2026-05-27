@@ -15,6 +15,7 @@ the RPi, which splits it into two paths:
 - **Russian IP ranges** (downloaded daily from `russia.iplist.opencck.org`) exit direct via the
   ISP gateway (router at `192.168.1.1`).
 - **Custom exceptions** (`/etc/white-list-extended.txt`) can force additional CIDRs via ISP.
+- **RU list exclusion filter** (`/etc/ru-exclude.txt`) can exclude specific CIDRs from the downloaded RU list so they route via VPN instead of ISP.
 - **VPN server host route** (`YOUR_VPN_SERVER_IP/32`) is always kept via ISP to prevent a routing loop.
 
 LAN devices are configured to use the RPi as their gateway via a router DHCP option. They
@@ -127,7 +128,7 @@ connecting to the RPi via SSH. You never run individual scripts manually during 
 | Autostart | 12–13 | Deploy `vpn-routing.service`, reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot |
 | Cron + rollback | 14–16 | Deploy `update-vpn-routes`, write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh` |
 | Logging | 17–20 | Install dnsmasq (before config), deploy `dnsmasq.conf`, deploy `vpn-status.sh`, deploy `watch-routes.py` |
-| Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` if present; deploy NM dispatcher `10-vpn-routes` |
+| Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` if present; conditionally deploy `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
 | ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/asn-lookup.py` (Team Cymru bulk-whois helper for ORG enrichment) |
 | Final activation | 24 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
 
@@ -379,6 +380,83 @@ ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
 
 ---
 
+## RU IP List Exclusion Filter
+
+Use this workflow when a CIDR range is incorrectly included in the RU IP list (e.g. a Google
+or Cloudflare range that iplist marks as RU) and you want it to route through the VPN.
+
+Unlike custom exceptions (`/etc/white-list-extended.txt`) which add ISP-bypass routes on top of
+the downloaded list, the exclusion filter removes CIDRs from the downloaded list at the source —
+they never appear in `/etc/white-list.txt` and therefore follow the default route (VPN).
+
+### How it works
+
+When `/etc/ru-exclude.txt` is present on the RPi, `update-vpn-routes` appends
+`&exclude[cidr4]=CIDR` query parameters to `RU_SUBNET_URL` before calling curl. The iplist
+service filters those ranges server-side. The downloaded file never contains the excluded CIDRs.
+
+If `/etc/ru-exclude.txt` is absent or empty, the download URL is unchanged — behavior is
+identical to before Phase 8.
+
+### Setup
+
+**Step 1: Identify CIDRs to exclude**
+
+```bash
+ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
+```
+
+Look for traffic that should be routed via VPN but is exiting via ISP. Resolve the destination IP
+to its network block using `whois` or `ipinfo.io`.
+
+**Step 2: Create the exclusion file**
+
+```bash
+cp configs/ru-exclude.txt.example configs/ru-exclude.txt
+```
+
+Edit `configs/ru-exclude.txt` and add your CIDRs (one per line):
+
+```
+# Exclude Google ranges incorrectly listed as RU
+142.250.0.0/16
+142.251.0.0/16
+```
+
+Note: `configs/ru-exclude.txt` is gitignored and will not be committed. The `.example` file
+documents the format.
+
+**Step 3: Deploy**
+
+```bash
+./deploy.sh
+```
+
+Stage 21 SCPs `configs/ru-exclude.txt` to `/etc/ru-exclude.txt` on the RPi.
+
+**Step 4: Trigger a route rebuild**
+
+```bash
+ssh pi4 "sudo /etc/update-vpn-routes"
+```
+
+Because the exclusion changes the effective download URL, the new list will have a different SHA256
+from the existing `/etc/white-list.txt`, triggering an automatic route rebuild. Verify via:
+
+```bash
+ssh pi4 "sudo journalctl -t vpn-routes -n 10 --no-pager"
+# expect: "Excluding N CIDR(s) from RU subnet download" followed by rebuild log
+```
+
+**Step 5: Verify**
+
+```bash
+ssh pi4 "ip route get <excluded-cidr-ip>"
+# Expected output contains: dev awg0  (routes via VPN, not ISP)
+```
+
+---
+
 ## Rollback
 
 `/etc/vpn-rollback.sh` fully undoes the VPN gateway in one idempotent command.
@@ -433,7 +511,7 @@ freshly rendered copy from your template + `.env.secrets`.
 
 **Synopsis:** `./deploy.sh [--no-run]`
 
-Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 23 stages.
+Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 24 stages.
 Sources `.env` and `.env.secrets`; validates keys before any remote operation.
 
 **Flags:**
@@ -816,6 +894,8 @@ See quick task `260523-nmr` in the Development Phases section for the full incid
 | 4 | Traffic Logging & Visibility | Per-connection VPN/ISP routing decisions logged and queryable | [.planning/phases/04-traffic-logging-visibility-vpn-isp/](.planning/phases/04-traffic-logging-visibility-vpn-isp/) |
 | 5 | Custom Route Exceptions | Per-CIDR ISP-bypass exceptions on top of auto-downloaded RU list | [.planning/phases/05-custom-route-exceptions-ip/](.planning/phases/05-custom-route-exceptions-ip/) |
 | 6 | Documentation | Ops runbook: deploy, verify, rollback, add exceptions | [.planning/phases/06-documentation/](.planning/phases/06-documentation/) |
+| 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org attribution via Team Cymru | [.planning/phases/07-asn-enrichment-traffic-attribution/](.planning/phases/07-asn-enrichment-traffic-attribution/) |
+| 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from the downloaded RU list so they route via VPN | [.planning/phases/08-ru-ip-list-exclusion-filter/](.planning/phases/08-ru-ip-list-exclusion-filter/) |
 
 ### Quick Tasks
 
