@@ -109,7 +109,7 @@ cp .env.secrets.example .env.secrets
 | Группа | Шаги | Что происходит |
 |--------|------|----------------|
 | Предварительные проверки | 1–3 | Проверка обязательных локальных файлов, загрузка `.env` + `.env.secrets`, валидация ключей, проверка SSH-подключения |
-| Установка AmneziaWG | 4 | Потоковая передача `scripts/install-awg.sh` по SSH на RPi; сборка DKMS может занять 10–30 минут |
+| Установка AmneziaWG | 4 | Потоковая передача `src/scripts/install-awg.sh` по SSH на RPi; сборка DKMS может занять 10–30 минут |
 | Развёртывание конфигурации | 5–9 | Генерация и развёртывание `awg0.conf` (права 600), развёртывание `vpn-gateway.env` (права 644), проверка файлов после развёртывания |
 | Развёртывание маршрутизации | 10–11 | SCP-копирование `routing.sh` в `/etc/routing.sh`, активация раздельной маршрутизации (если не указан `--no-run`) |
 | Автозапуск | 12–13 | Развёртывание `vpn-routing.service`, перезагрузка systemd, включение `awg-quick@awg0` + `vpn-routing.service` при загрузке |
@@ -124,13 +124,13 @@ cp .env.secrets.example .env.secrets
 Полное развёртывание (развернуть все файлы + активировать маршрутизацию):
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
 Развёртывание без активации маршрутизации (используйте при первом развёртывании до поднятия туннеля или при тестировании изменений конфигурации без изменения активных маршрутов):
 
 ```bash
-./deploy.sh --no-run
+bash src/deploy.sh --no-run
 ```
 
 Если был использован `--no-run`, активируйте маршрутизацию вручную позже:
@@ -141,7 +141,7 @@ ssh pi4 "sudo /etc/routing.sh"
 
 ### Примечание об установщике AmneziaWG
 
-Шаг 4 `deploy.sh` передаёт `scripts/install-awg.sh` по SSH и запускает его на RPi от имени root. Вы не вызываете `install-awg.sh` напрямую — это внутренний установщик на стороне RPi, который вызывается только оркестратором развёртывания.
+Шаг 4 `src/deploy.sh` передаёт `src/scripts/install-awg.sh` по SSH и запускает его на RPi от имени root. Вы не вызываете `install-awg.sh` напрямую — это внутренний установщик на стороне RPi, который вызывается только оркестратором развёртывания.
 
 ### Поднятие туннеля (ручной шаг)
 
@@ -309,10 +309,10 @@ whois <ip-адрес-назначения>
 **Шаг 3: Создайте файл исключений**
 
 ```bash
-cp configs/white-list-extended.txt.example configs/white-list-extended.txt
+cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
 ```
 
-Отредактируйте `configs/white-list-extended.txt` и добавьте ваши CIDR (по одному на строку):
+Отредактируйте `src/configs/white-list-extended.txt` и добавьте ваши CIDR (по одному на строку):
 
 ```
 # Правила формата:
@@ -324,15 +324,15 @@ cp configs/white-list-extended.txt.example configs/white-list-extended.txt
 95.181.176.0/22
 ```
 
-Примечание: `configs/white-list-extended.txt` добавлен в .gitignore и не будет закоммичен. `.example`-файл (который закоммичен) документирует формат.
+Примечание: `src/configs/white-list-extended.txt` добавлен в .gitignore и не будет закоммичен. `.example`-файл (который закоммичен) документирует формат.
 
 **Шаг 4: Разверните**
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
-Шаг 21 копирует `configs/white-list-extended.txt` по SCP в `/etc/white-list-extended.txt` на RPi. Шаг 23 повторно запускает `routing.sh`, который загружает маршруты исключений на шаге 5b.
+Шаг 21 копирует `src/configs/white-list-extended.txt` по SCP в `/etc/white-list-extended.txt` на RPi. Шаг 23 повторно запускает `routing.sh`, который загружает маршруты исключений на шаге 5b.
 
 **Шаг 5: Проверьте**
 
@@ -375,10 +375,10 @@ ssh pi4 "sudo /etc/vpn-status.sh --via=isp"
 **Шаг 2: Создайте файл исключений**
 
 ```bash
-cp configs/ru-exclude.txt.example configs/ru-exclude.txt
+cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
 ```
 
-Отредактируйте `configs/ru-exclude.txt` и добавьте ваши CIDR-диапазоны (по одному на строку):
+Отредактируйте `src/configs/ru-exclude.txt` и добавьте ваши CIDR-диапазоны (по одному на строку):
 
 ```
 # Исключить диапазоны Google, ошибочно отмеченные как РФ
@@ -386,15 +386,15 @@ cp configs/ru-exclude.txt.example configs/ru-exclude.txt
 142.251.0.0/16
 ```
 
-Файл `configs/ru-exclude.txt` добавлен в `.gitignore` и не будет закоммичен. Файл `.example` документирует формат.
+Файл `src/configs/ru-exclude.txt` добавлен в `.gitignore` и не будет закоммичен. Файл `.example` документирует формат.
 
 **Шаг 3: Развёртывание**
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
-Stage 21 скопирует `configs/ru-exclude.txt` на RPi как `/etc/ru-exclude.txt`.
+Stage 21 скопирует `src/configs/ru-exclude.txt` на RPi как `/etc/ru-exclude.txt`.
 
 **Шаг 4: Обновление маршрутов**
 
@@ -458,7 +458,7 @@ ssh pi4 "sudo /etc/vpn-rollback.sh"
 ### Повторная активация после отката
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
 Развёртывание переустанавливает всё. Существующий `awg0.conf` на RPi перезаписывается свежей версией, сгенерированной из шаблона и `.env.secrets`.
@@ -467,9 +467,9 @@ ssh pi4 "sudo /etc/vpn-rollback.sh"
 
 ## Справочник по скриптам
 
-### deploy.sh
+### src/deploy.sh
 
-**Синтаксис:** `./deploy.sh [--no-run]`
+**Синтаксис:** `bash src/deploy.sh [--no-run]`
 
 Запускается с вашего Mac. Подключается к RPi через `SSH_HOST=pi4` (из `.env`). 24 шага. Загружает `.env` и `.env.secrets`; проверяет ключи перед любой удалённой операцией.
 
@@ -483,10 +483,10 @@ ssh pi4 "sudo /etc/vpn-rollback.sh"
 
 ```bash
 # Полное развёртывание + активация маршрутизации (стандартное использование)
-./deploy.sh
+bash src/deploy.sh
 
 # Только развёртывание — активировать маршрутизацию вручную позже
-./deploy.sh --no-run
+bash src/deploy.sh --no-run
 
 # Активировать маршрутизацию после развёртывания с --no-run
 ssh pi4 "sudo /etc/routing.sh"
@@ -494,7 +494,7 @@ ssh pi4 "sudo /etc/routing.sh"
 
 ---
 
-### scripts/routing.sh (развёртывается в /etc/routing.sh)
+### src/scripts/routing.sh (развёртывается в /etc/routing.sh)
 
 **Синтаксис:** `sudo /etc/routing.sh [--no-update]`
 
@@ -527,7 +527,7 @@ ssh pi4 "ip route get 77.88.8.8"    # ожидается: via 192.168.1.1
 
 ---
 
-### scripts/vpn-status.sh (развёртывается в /etc/vpn-status.sh)
+### src/scripts/vpn-status.sh (развёртывается в /etc/vpn-status.sh)
 
 **Синтаксис:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
 
@@ -576,7 +576,7 @@ sudo /etc/vpn-status.sh --last=200
 
 ---
 
-### scripts/vpn-rollback.sh (развёртывается в /etc/vpn-rollback.sh)
+### src/scripts/vpn-rollback.sh (развёртывается в /etc/vpn-rollback.sh)
 
 **Синтаксис:** `sudo /etc/vpn-rollback.sh`
 
@@ -593,12 +593,12 @@ ssh pi4 "ip route show default"
 # Ожидается: default via 192.168.1.1
 
 # Повторная активация после отката
-./deploy.sh
+bash src/deploy.sh
 ```
 
 ---
 
-### scripts/update-vpn-routes (развёртывается в /etc/update-vpn-routes)
+### src/scripts/update-vpn-routes (развёртывается в /etc/update-vpn-routes)
 
 **Синтаксис:** `sudo /etc/update-vpn-routes`
 
@@ -650,7 +650,7 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 ---
 
-### scripts/watch-routes.py (развёртывается в /etc/watch-routes.py)
+### src/scripts/watch-routes.py (развёртывается в /etc/watch-routes.py)
 
 **Синтаксис:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
 
@@ -685,7 +685,7 @@ sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
 
 ---
 
-### scripts/asn-lookup.py (развёртывается в /etc/asn-lookup.py)
+### src/scripts/asn-lookup.py (развёртывается в /etc/asn-lookup.py)
 
 **Синтаксис:** `python3 /etc/asn-lookup.py [IP...]`
 
@@ -753,7 +753,7 @@ printf "8.8.8.8\n" | python3 /etc/asn-lookup.py
 
 Причина: Если конфигурация `dnsmasq` развёртывается до установки пакета, `apt-get install dnsmasq` перезапишет развёрнутую конфигурацию конфигурацией по умолчанию пакета или запустит интерактивный запрос.
 
-Решение: Повторно запустите `./deploy.sh` — шаг 17 всегда устанавливает `dnsmasq` перед шагом 18, который развёртывает конфигурацию. Установка использует `DEBIAN_FRONTEND=noninteractive`, чтобы исключить интерактивные запросы.
+Решение: Повторно запустите `bash src/deploy.sh` — шаг 17 всегда устанавливает `dnsmasq` перед шагом 18, который развёртывает конфигурацию. Установка использует `DEBIAN_FRONTEND=noninteractive`, чтобы исключить интерактивные запросы.
 
 ---
 
@@ -814,7 +814,7 @@ ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 # Ожидаемый вывод: "eth0 up — restoring VPN split-tunnel routes"
 ```
 
-Резервный механизм: `update-vpn-routes` также проверяет наличие маршрута к VPN-серверу при сбое загрузки и запускает перестройку. Оба механизма развёртываются командой `./deploy.sh`.
+Резервный механизм: `update-vpn-routes` также проверяет наличие маршрута к VPN-серверу при сбое загрузки и запускает перестройку. Оба механизма развёртываются командой `bash src/deploy.sh`.
 
 Если маршруты уже пропали и требуется ручное восстановление:
 

@@ -122,7 +122,7 @@ connecting to the RPi via SSH. You never run individual scripts manually during 
 | Group | Stages | What happens |
 |-------|--------|--------------|
 | Preflight | 1–3 | Check required local files, source `.env` + `.env.secrets`, validate keys, verify SSH connectivity |
-| AmneziaWG install | 4 | Stream `scripts/install-awg.sh` over SSH to the RPi; DKMS build may take 10–30 min |
+| AmneziaWG install | 4 | Stream `src/scripts/install-awg.sh` over SSH to the RPi; DKMS build may take 10–30 min |
 | Config deploy | 5–9 | Render and deploy `awg0.conf` (mode 600), deploy `vpn-gateway.env` (mode 644), post-deploy file checks |
 | Routing deploy | 10–11 | SCP `routing.sh` to `/etc/routing.sh`, activate split-tunnel routing (unless `--no-run`) |
 | Autostart | 12–13 | Deploy `vpn-routing.service`, reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot |
@@ -137,14 +137,14 @@ connecting to the RPi via SSH. You never run individual scripts manually during 
 Full deploy (deploy all files + activate routing):
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
 Deploy without activating routing (use for first-time deploy before the tunnel is brought up,
 or when testing config changes without changing active routes):
 
 ```bash
-./deploy.sh --no-run
+bash src/deploy.sh --no-run
 ```
 
 If `--no-run` was used, activate routing manually later:
@@ -155,7 +155,7 @@ ssh pi4 "sudo /etc/routing.sh"
 
 ### AmneziaWG installer note
 
-`deploy.sh` Stage 4 streams `scripts/install-awg.sh` over SSH and runs it on the RPi as root.
+`src/deploy.sh` Stage 4 streams `src/scripts/install-awg.sh` over SSH and runs it on the RPi as root.
 You do not invoke `install-awg.sh` directly — it is an internal RPi-side installer called by
 the deploy orchestrator only.
 
@@ -337,10 +337,10 @@ Alternatively, open `https://ipinfo.io/<destination-ip>` in a browser.
 **Step 3: Create the exception file**
 
 ```bash
-cp configs/white-list-extended.txt.example configs/white-list-extended.txt
+cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
 ```
 
-Edit `configs/white-list-extended.txt` and add your CIDRs (one per line):
+Edit `src/configs/white-list-extended.txt` and add your CIDRs (one per line):
 
 ```
 # Format rules:
@@ -352,16 +352,16 @@ Edit `configs/white-list-extended.txt` and add your CIDRs (one per line):
 95.181.176.0/22
 ```
 
-Note: `configs/white-list-extended.txt` is gitignored and will not be committed. The
+Note: `src/configs/white-list-extended.txt` is gitignored and will not be committed. The
 `.example` file (which is committed) documents the format.
 
 **Step 4: Deploy**
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
-Stage 21 SCPs `configs/white-list-extended.txt` to `/etc/white-list-extended.txt` on the RPi.
+Stage 21 SCPs `src/configs/white-list-extended.txt` to `/etc/white-list-extended.txt` on the RPi.
 Stage 23 re-runs `routing.sh`, which loads exception routes in Stage 5b.
 
 **Step 5: Verify**
@@ -412,10 +412,10 @@ to its network block using `whois` or `ipinfo.io`.
 **Step 2: Create the exclusion file**
 
 ```bash
-cp configs/ru-exclude.txt.example configs/ru-exclude.txt
+cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
 ```
 
-Edit `configs/ru-exclude.txt` and add your CIDRs (one per line):
+Edit `src/configs/ru-exclude.txt` and add your CIDRs (one per line):
 
 ```
 # Exclude Google ranges incorrectly listed as RU
@@ -423,16 +423,16 @@ Edit `configs/ru-exclude.txt` and add your CIDRs (one per line):
 142.251.0.0/16
 ```
 
-Note: `configs/ru-exclude.txt` is gitignored and will not be committed. The `.example` file
+Note: `src/configs/ru-exclude.txt` is gitignored and will not be committed. The `.example` file
 documents the format.
 
 **Step 3: Deploy**
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
-Stage 21 SCPs `configs/ru-exclude.txt` to `/etc/ru-exclude.txt` on the RPi.
+Stage 21 SCPs `src/configs/ru-exclude.txt` to `/etc/ru-exclude.txt` on the RPi.
 
 **Step 4: Trigger a route rebuild**
 
@@ -497,7 +497,7 @@ Revert the router DHCP gateway back to `192.168.1.1`:
 ### Re-activate after rollback
 
 ```bash
-./deploy.sh
+bash src/deploy.sh
 ```
 
 Deploy re-installs everything. The existing `awg0.conf` on the RPi is overwritten with a
@@ -507,9 +507,9 @@ freshly rendered copy from your template + `.env.secrets`.
 
 ## Script CLI Reference
 
-### deploy.sh
+### src/deploy.sh
 
-**Synopsis:** `./deploy.sh [--no-run]`
+**Synopsis:** `bash src/deploy.sh [--no-run]`
 
 Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 24 stages.
 Sources `.env` and `.env.secrets`; validates keys before any remote operation.
@@ -524,10 +524,10 @@ Sources `.env` and `.env.secrets`; validates keys before any remote operation.
 
 ```bash
 # Full deploy + activate routing (normal usage)
-./deploy.sh
+bash src/deploy.sh
 
 # Deploy only — activate routing manually later
-./deploy.sh --no-run
+bash src/deploy.sh --no-run
 
 # Activate routing after --no-run deploy
 ssh pi4 "sudo /etc/routing.sh"
@@ -535,7 +535,7 @@ ssh pi4 "sudo /etc/routing.sh"
 
 ---
 
-### scripts/routing.sh (deployed to /etc/routing.sh)
+### src/scripts/routing.sh (deployed to /etc/routing.sh)
 
 **Synopsis:** `sudo /etc/routing.sh [--no-update]`
 
@@ -571,7 +571,7 @@ ssh pi4 "ip route get 77.88.8.8"    # expect: via 192.168.1.1
 
 ---
 
-### scripts/vpn-status.sh (deployed to /etc/vpn-status.sh)
+### src/scripts/vpn-status.sh (deployed to /etc/vpn-status.sh)
 
 **Synopsis:** `sudo /etc/vpn-status.sh [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]`
 
@@ -624,7 +624,7 @@ sudo /etc/vpn-status.sh --last=200
 
 ---
 
-### scripts/vpn-rollback.sh (deployed to /etc/vpn-rollback.sh)
+### src/scripts/vpn-rollback.sh (deployed to /etc/vpn-rollback.sh)
 
 **Synopsis:** `sudo /etc/vpn-rollback.sh`
 
@@ -641,12 +641,12 @@ ssh pi4 "ip route show default"
 # Expected: default via 192.168.1.1
 
 # Re-activate after rollback
-./deploy.sh
+bash src/deploy.sh
 ```
 
 ---
 
-### scripts/update-vpn-routes (deployed to /etc/update-vpn-routes)
+### src/scripts/update-vpn-routes (deployed to /etc/update-vpn-routes)
 
 **Synopsis:** `sudo /etc/update-vpn-routes`
 
@@ -700,7 +700,7 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 ---
 
-### scripts/watch-routes.py (deployed to /etc/watch-routes.py)
+### src/scripts/watch-routes.py (deployed to /etc/watch-routes.py)
 
 **Synopsis:** `sudo /etc/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
 
@@ -739,7 +739,7 @@ sudo /etc/watch-routes.py --tag ISP --no-dns --no-asn
 
 ---
 
-### scripts/asn-lookup.py (deployed to /etc/asn-lookup.py)
+### src/scripts/asn-lookup.py (deployed to /etc/asn-lookup.py)
 
 **Synopsis:** `python3 /etc/asn-lookup.py [IPs...]`
 
@@ -811,7 +811,7 @@ Symptom: Stage 17/18 of `deploy.sh` fails; `systemctl status dnsmasq` shows a co
 
 Cause: If `dnsmasq` config is deployed before the `dnsmasq` package is installed, `apt-get install dnsmasq` will overwrite the deployed config with the package default, or prompt interactively.
 
-Fix: Re-run `./deploy.sh` — Stage 17 always installs `dnsmasq` before Stage 18 deploys the config. The install uses `DEBIAN_FRONTEND=noninteractive` to prevent interactive prompts.
+Fix: Re-run `bash src/deploy.sh` — Stage 17 always installs `dnsmasq` before Stage 18 deploys the config. The install uses `DEBIAN_FRONTEND=noninteractive` to prevent interactive prompts.
 
 ---
 
@@ -872,7 +872,7 @@ ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 # Expected: "eth0 up — restoring VPN split-tunnel routes"
 ```
 
-Fallback: `update-vpn-routes` also checks for a missing VPN server host route on download failure and triggers a rebuild. Both mechanisms are deployed by `./deploy.sh`.
+Fallback: `update-vpn-routes` also checks for a missing VPN server host route on download failure and triggers a rebuild. Both mechanisms are deployed by `bash src/deploy.sh`.
 
 If routes are currently missing and need manual recovery:
 
