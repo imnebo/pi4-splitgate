@@ -19,7 +19,7 @@
 | 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org via Team Cymru | ✓ Complete |
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from downloaded RU list so they route via VPN | ✓ Complete |
 | 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
-| 10 | 1/4 | In Progress|  |
+| 10 | 3/4 | In Progress|  |
 
 ---
 
@@ -271,7 +271,7 @@ Plans:
 **Goal:** Consolidate all RPi app files under `/etc/splitgate/` (branded namespace); move Phase 9 logs to `/etc/splitgate/logs/`; add `/usr/local/bin/splitgate` dispatcher with subcommands: `status`, `watch`, `rollback`, `routing`, `update`
 **Requirements**: None mapped (UX/ergonomics phase — pure path consolidation + dispatcher CLI; no new v1 requirements)
 **Depends on:** Phase 9 (logrotate stanza targets the Phase 9 log path under the new namespace)
-**Plans:** 1/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 
@@ -282,7 +282,7 @@ Plans:
 **Wave 1 (parallel — disjoint file sets, after Wave 0):**
 
 - [x] 10-01-PLAN.md — Rewrite internal `/etc/` path references in src/scripts/routing.sh, vpn-status.sh, vpn-rollback.sh (+ D-18 splitgate teardown), update-vpn-routes, watch-routes.py, 10-vpn-routes, src/systemd/vpn-routing.service to the `/etc/splitgate/` namespace ✓ 2026-05-27
-- [ ] 10-02-PLAN.md — Update src/deploy.sh `*_REMOTE` variables to `/etc/splitgate/...`; add SPLITGATE_/LOGROTATE_ variables + preflight checks; insert Stages 5 (mkdir splitgate), 26 (dispatcher deploy), 27 (logrotate deploy); bump TOTAL_STAGES=27; refresh final summary
+- [x] 10-02-PLAN.md — Update src/deploy.sh `*_REMOTE` variables to `/etc/splitgate/...`; add SPLITGATE_/LOGROTATE_ variables + preflight checks; insert Stages 5 (mkdir splitgate), 26 (dispatcher deploy), 27 (logrotate deploy); bump TOTAL_STAGES=27; refresh final summary
 
 **Wave 2 (after Wave 1):**
 

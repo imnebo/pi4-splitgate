@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 10 in progress — 2/4 plans done
-stopped_at: Phase 10 Plan 01 complete — /etc/splitgate/ path migration done
-last_updated: "2026-05-27T18:14:00Z"
+status: Phase 10 in progress — 3/4 plans done
+stopped_at: Phase 10 Plan 02 complete — deploy.sh remote vars updated + 3 new stages (5/26/27) + TOTAL_STAGES=27
+last_updated: "2026-05-27T14:51:00Z"
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 24
-  completed_plans: 23
+  completed_plans: 24
   percent: 87
 ---
 
@@ -24,11 +24,12 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 10: Splitgate Ergonomics — IN PROGRESS (2/4 plans)**
+**Phase 10: Splitgate Ergonomics — IN PROGRESS (3/4 plans)**
 
 10-00 complete: all source dirs moved to src/.
 10-01 complete: all internal /etc/ paths in 7 scripts/units migrated to /etc/splitgate/; vpn-rollback.sh D-18 teardown added.
-Next: 10-02 (deploy.sh remote variable updates).
+10-02 complete: deploy.sh *_REMOTE vars updated to /etc/splitgate/; 3 new stages (5: mkdir /etc/splitgate/logs, 26: dispatcher, 27: logrotate); TOTAL_STAGES=27; Stage 21b header bug fixed.
+Next: 10-03 (create scripts/splitgate dispatcher + configs/logrotate-vpn-gateway).
 
 ## Phase Progress
 
@@ -43,7 +44,7 @@ Next: 10-02 (deploy.sh remote variable updates).
 | 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
 | 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
 | 9 — Operational Logging | ◆ Planned | 0/? | 0% |
-| 10 — Splitgate Ergonomics & Organization | ◆ In Progress | 2/4 | 50% |
+| 10 — Splitgate Ergonomics & Organization | ◆ In Progress | 3/4 | 75% |
 
 ## Requirements
 
@@ -84,6 +85,7 @@ Next: 10-02 (deploy.sh remote variable updates).
 - Phase 10 D-10-00-02: .env/.env.secrets accessed via ../ prefix from src/; root .gitignore gains src/configs/ prefix on previously bare configs/ entries
 - Phase 10 D-10-01 (D-18): vpn-rollback.sh Step 7b removes /usr/local/bin/splitgate then /etc/splitgate/ tree as final filesystem ops after route restoration (per Pitfall 5)
 - Phase 10 D-10-01 (D-12): /etc/iptables/rules.v4 path in routing.sh left unchanged; iptables-persistent requires exact path
+- Phase 10 D-10-02: deploy.sh Stage 5 (mkdir /etc/splitgate/logs) inserted after AmneziaWG install — before awg0.conf render — guaranteeing namespace exists before any file deploy (Pitfall 4); TOTAL_STAGES=27; Stage 21b bug corrected to [22b/...]; dispatcher Stage 26 + logrotate Stage 27 placed after routing.sh activation Stage 25
 
 ## Hardware Verified
 
@@ -94,9 +96,9 @@ Next: 10-02 (deploy.sh remote variable updates).
 
 ## Last Session
 
-**Stopped at:** Phase 10 Plan 01 complete — /etc/splitgate/ path migration done
-**Timestamp:** 2026-05-27T18:14:00Z
-**Resume:** 10-01 done. All internal /etc/ paths migrated to /etc/splitgate/ in 7 scripts/units. Wave 1 plan 10-02 next (deploy.sh remote variable updates).
+**Stopped at:** Phase 10 Plan 02 complete — deploy.sh remote vars + new stages (5/26/27) + TOTAL_STAGES=27
+**Timestamp:** 2026-05-27T14:51:00Z
+**Resume:** 10-02 done. deploy.sh now deploys to /etc/splitgate/ namespace with 27 stages. Wave 2 plan 10-03 next (create scripts/splitgate dispatcher + configs/logrotate-vpn-gateway).
 
 ---
 *Initialized: 2026-05-18*
