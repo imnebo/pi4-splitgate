@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 7 complete — all plans done
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-05-27T12:47:47.888Z"
+status: Phase 8 complete — all plans done
+stopped_at: Phase 8 complete — 3/3 plans executed
+last_updated: "2026-05-27T15:45:00.000Z"
 progress:
   total_phases: 10
   completed_phases: 8
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 5: Custom Route Exceptions — COMPLETE ✓**
+**Phase 8: RU IP List Exclusion Filter — COMPLETE ✓**
 
-All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) wired 2026-05-21.
+EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, example file + docs complete 2026-05-27.
 
 ## Phase Progress
 
@@ -39,6 +39,7 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 | 5 — Custom Route Exceptions | ✓ Complete | 2/2 done | 100% |
 | 6 — Documentation | ◆ Planned | 0/2 | 0% |
 | 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
+| 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
 
 ## Requirements
 
@@ -73,6 +74,8 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 - Phase 7 D-08: watch-routes.py _asn_cache uses None sentinel (in-flight) / {} (completed-no-result) / dict (resolved) — three states prevent duplicate thread spawns
 - Phase 7 D-09: enable_asn keyword-only param on format_line() — backward-compatible default True; --no-asn flag maps to enable_asn=False
 - Phase 7 D-10: deploy.sh Stage 23 deploys asn-lookup.py; Stage 24 activates routing.sh — routing activation remains last runtime stage
+- Phase 8 D-05/D-06: EFFECTIVE_URL initialized to RU_SUBNET_URL; /etc/ru-exclude.txt lines appended as &exclude[cidr4]=CIDR; absent/empty file → URL unchanged
+- Phase 8 D-07/D-08: EXCLUDE_LIST_LOCAL=configs/ru-exclude.txt; Stage 21b conditional SCP to /etc/ru-exclude.txt (chmod 644, root:root); no TOTAL_STAGES bump (remains 24); configs/ru-exclude.txt gitignored
 
 ## Hardware Verified
 
@@ -83,13 +86,13 @@ All deploy tooling (vpn-status.sh --via, deploy.sh Stage 21, example template) w
 
 ## Last Session
 
-**Stopped at:** Completed 08-01-PLAN.md
-**Timestamp:** 2026-05-23T10:40:00Z
-**Resume:** Phase 7 complete. All 7 phases done. No more plans to execute.
+**Stopped at:** Phase 8 complete — 3/3 plans executed
+**Timestamp:** 2026-05-27T15:45:00Z
+**Resume:** Phase 8 complete. EFFECTIVE_URL in update-vpn-routes, Stage 21b in deploy.sh, ru-exclude.txt.example + docs done. Next: Phase 9 (Operational Logging) or Phase 6 (Documentation).
 
 ---
 *Initialized: 2026-05-18*
-*Updated: 2026-05-21 — Phase 5 complete; deploy.sh at TOTAL_STAGES=22; --via flag in vpn-status.sh; exception file deploy staged*
+*Updated: 2026-05-27 — Phase 8 complete; EFFECTIVE_URL exclusion filter in update-vpn-routes; Stage 21b + EXCLUDE_LIST vars in deploy.sh (TOTAL_STAGES=24); configs/ru-exclude.txt.example added*
 
 ## Quick Tasks Completed
 
