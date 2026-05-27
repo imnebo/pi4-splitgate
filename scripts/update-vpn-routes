@@ -34,10 +34,28 @@ fi
 # shellcheck source=/dev/null
 source /etc/vpn-gateway.env
 
+# ─── Build effective download URL (D-05, D-06) ───────────────────────────────
+# If /etc/ru-exclude.txt exists and is non-empty, append &exclude[cidr4]=CIDR
+# for each non-comment non-blank line. Absent or empty file → URL unchanged.
+EFFECTIVE_URL="${RU_SUBNET_URL}"
+EXCLUDE_FILE="/etc/ru-exclude.txt"
+if [[ -f "${EXCLUDE_FILE}" ]]; then
+    exclude_count=0
+    while IFS= read -r line; do
+        # Skip comment lines (starting with #) and blank lines (D-02)
+        [[ "${line}" =~ ^# || -z "${line}" ]] && continue
+        EFFECTIVE_URL="${EFFECTIVE_URL}&exclude[cidr4]=${line}"
+        (( exclude_count++ )) || true
+    done < "${EXCLUDE_FILE}"
+    if (( exclude_count > 0 )); then
+        log "Excluding ${exclude_count} CIDR(s) from RU subnet download"
+    fi
+fi
+
 # ─── Stage 1: Download RU subnet list to temp file ───────────────────────────
 log "Checking for RU subnet list update..."
 
-if ! curl -fsSL "${RU_SUBNET_URL}" -o "${SUBNET_TMP}" 2>/dev/null; then
+if ! curl -fsSL "${EFFECTIVE_URL}" -o "${SUBNET_TMP}" 2>/dev/null; then
     log "Download failed — skipping subnet update"
     rm -f "${SUBNET_TMP}"
     # NM carrier-change recovery: if VPN server host route is missing, routes were flushed
