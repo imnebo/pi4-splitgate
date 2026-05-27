@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# scripts/vpn-rollback.sh — Deployed to /etc/vpn-rollback.sh on RPi
+# scripts/vpn-rollback.sh — Deployed to /etc/splitgate/vpn-rollback.sh on RPi
 #
 # Purpose: Fully undoes the VPN gateway setup in one idempotent command.
 # Requirements satisfied: ROLL-01 (stops services, flushes routes, removes NAT/cron),
-#                         ROLL-02 (preserves awg0.conf, packages, routing.sh, white-list.txt)
+#                         ROLL-02 (preserves awg0.conf and AmneziaWG packages)
 #
 # Decisions honored:
 #   D-08: Rollback order — stop+disable services, flush routes, remove NAT, remove cron,
 #         restore ISP default route via static ip route add (no dhclient dependency)
 #   D-09: Silent execution + syslog via logger; final state printed to stdout
-#   D-10: Preserved files: /etc/amnezia/amneziawg/awg0.conf, /etc/routing.sh,
-#         /etc/white-list.txt, AmneziaWG packages — rollback only undoes running state
+#   D-18: Teardown removes /usr/local/bin/splitgate and /etc/splitgate/ (entire tree);
+#         /etc/amnezia/amneziawg/awg0.conf and AmneziaWG packages preserved
 #
 # REMOVED by this script:
 #   - vpn-routing.service (stopped + disabled)
@@ -18,14 +18,14 @@
 #   - Routes on ${VPN_IFACE} (flushed)
 #   - MASQUERADE iptables rules on ${VPN_IFACE} + eth0
 #   - /etc/cron.d/vpn-routes
+#   - /usr/local/bin/splitgate (D-18)
+#   - /etc/splitgate/ (entire tree: scripts, data files, env — D-18)
 #
 # PRESERVED by this script (ROLL-02):
 #   - /etc/amnezia/amneziawg/awg0.conf (mode 600)
-#   - /etc/routing.sh
-#   - /etc/white-list.txt
 #   - AmneziaWG packages (awg, awg-quick, etc.)
 #
-# Usage: sudo /etc/vpn-rollback.sh
+# Usage: sudo /etc/splitgate/vpn-rollback.sh
 # To re-activate the gateway after rollback: ./deploy.sh
 
 set -euo pipefail
@@ -33,13 +33,13 @@ set -euo pipefail
 # ─── Logging (D-09: syslog via logger + echo to stdout for operator visibility) ─
 log() { logger -t "vpn-rollback" "$*"; echo "[rollback] $*"; }
 
-# ─── Guard: source env file (D-10) ───────────────────────────────────────────
-if [[ ! -f /etc/vpn-gateway.env ]]; then
-    echo "ERROR: /etc/vpn-gateway.env not found — cannot determine KEENETIC_GW, VPN_IFACE, VPN_SERVER_IP" >&2
+# ─── Guard: source env file (D-18) ───────────────────────────────────────────
+if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
+    echo "ERROR: /etc/splitgate/vpn-gateway.env not found — cannot determine KEENETIC_GW, VPN_IFACE, VPN_SERVER_IP" >&2
     exit 1
 fi
 # shellcheck source=/dev/null
-source /etc/vpn-gateway.env
+source /etc/splitgate/vpn-gateway.env
 
 log "Starting VPN gateway rollback..."
 
@@ -104,12 +104,6 @@ if iptables -C FORWARD -o eth0 -m state --state NEW -m limit --limit 10/min --li
     log "LOG rule [ISP] on eth0: removed"
 fi
 
-# ─── Step 4c: Remove exception file (D-14) ───────────────────────────────────
-# rm -f handles absence silently — exception file may or may not exist on this RPi.
-log "Removing /etc/white-list-extended.txt (if present)..."
-rm -f /etc/white-list-extended.txt
-log "/etc/white-list-extended.txt: removed (or was not present)"
-
 # ─── Step 5: Re-save iptables without MASQUERADE rules (Pitfall 5 tolerance) ──
 # MASQUERADE rules are already removed from the running kernel above.
 # netfilter-persistent save persists the clean state to survive reboots.
@@ -129,6 +123,15 @@ log "Restoring ISP default route via ${KEENETIC_GW}..."
 ip route add default via "${KEENETIC_GW}"
 log "Default route restored: default via ${KEENETIC_GW}"
 
+# ─── Step 7b: Remove splitgate dispatcher and /etc/splitgate/ tree (D-18) ────
+# Placed AFTER route restoration (Pitfall 5): a failure mid-teardown still
+# leaves the rollback script callable if the route is already restored.
+# rm -f / rm -rf handle absence silently.
+rm -f /usr/local/bin/splitgate
+log "Removed /usr/local/bin/splitgate"
+rm -rf /etc/splitgate
+log "Removed /etc/splitgate/ (entire tree)"
+
 # ─── Step 8: Final state summary to stdout (D-09) ────────────────────────────
 echo ""
 echo "================================================================"
@@ -141,16 +144,18 @@ echo " Routes flushed: dev ${VPN_IFACE}"
 echo " NAT rules removed: MASQUERADE on ${VPN_IFACE} + eth0"
 echo "   dnsmasq: stopped and disabled"
 echo "   LOG rules removed: [VPN] on ${VPN_IFACE}, [ISP] on eth0"
-echo "   Exception file removed: /etc/white-list-extended.txt (if present)"
-echo "   Note: /etc/dnsmasq.conf and /etc/vpn-status.sh remain on disk (not removed)"
 echo " Cron removed: /etc/cron.d/vpn-routes"
 echo " Default route restored: via ${KEENETIC_GW}"
 echo ""
+echo " Removed (D-18 splitgate teardown):"
+echo "   /usr/local/bin/splitgate"
+echo "   /etc/splitgate/ (entire tree, including white-list.txt, white-list-extended.txt, ru-exclude.txt, vpn-gateway.env)"
+echo ""
 echo " Preserved (not removed):"
 echo "   /etc/amnezia/amneziawg/awg0.conf"
-echo "   /etc/routing.sh"
-echo "   /etc/white-list.txt"
 echo "   AmneziaWG packages"
+echo ""
+echo "   Note: /etc/dnsmasq.conf remains on disk (system file at /etc/, not removed)"
 echo ""
 echo " To verify: ip route show default"
 echo "   Expected: default via ${KEENETIC_GW}"

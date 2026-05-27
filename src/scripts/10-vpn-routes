@@ -14,5 +14,5 @@ ACTION="$2"
 
 if [[ "$IFACE" == "eth0" && "$ACTION" == "up" ]]; then
     logger -t "vpn-routes" "eth0 up — restoring VPN split-tunnel routes"
-    /etc/routing.sh --no-update >> /var/log/vpn-routes.log 2>&1 &
+    /etc/splitgate/routing.sh --no-update >> /var/log/vpn-routes.log 2>&1 &
 fi

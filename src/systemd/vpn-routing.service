@@ -1,6 +1,6 @@
 # vpn-routing.service — systemd oneshot unit for split-tunnel routing setup
 #
-# D-01: ExecStart runs /etc/routing.sh with no flags so boot always fetches
+# D-01: ExecStart runs /etc/splitgate/routing.sh with no flags so boot always fetches
 #       the freshest available RU subnet list (D-04 fallback inside routing.sh
 #       handles offline boots safely).
 # D-02: After=awg-quick@awg0.service network-online.target ensures the VPN
@@ -17,7 +17,7 @@ Requires=awg-quick@awg0.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/etc/routing.sh
+ExecStart=/etc/splitgate/routing.sh
 
 [Install]
 WantedBy=multi-user.target
