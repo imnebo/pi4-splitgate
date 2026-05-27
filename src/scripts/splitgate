@@ -1,0 +1,22 @@
+#!/bin/bash
+# src/scripts/splitgate — ergonomic dispatcher for /etc/splitgate tools
+# Deployed to: /usr/local/bin/splitgate
+# Decisions: D-13 (bash, /usr/local/bin/splitgate), D-14 (subcommand→target map),
+#             D-15 (args pass-through), D-16 (unknown subcommand Usage + exit 1),
+#             D-17 (chmod +x, root:root via deploy.sh Stage 26),
+#             D-18 (rollback removes /usr/local/bin/splitgate + /etc/splitgate/)
+
+SPLITGATE_DIR="/etc/splitgate"
+CMD="${1:-}"
+shift || true
+case "$CMD" in
+  status)   exec sudo "$SPLITGATE_DIR/vpn-status.sh" "$@" ;;
+  watch)    exec sudo python3 "$SPLITGATE_DIR/watch-routes.py" "$@" ;;
+  rollback) exec sudo "$SPLITGATE_DIR/vpn-rollback.sh" "$@" ;;
+  routing)  exec sudo "$SPLITGATE_DIR/routing.sh" "$@" ;;
+  update)   exec sudo "$SPLITGATE_DIR/update-vpn-routes" "$@" ;;
+  *)
+    echo "Usage: splitgate {status|watch|rollback|routing|update} [args...]"
+    exit 1
+    ;;
+esac
