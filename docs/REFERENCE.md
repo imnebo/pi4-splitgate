@@ -13,7 +13,7 @@ Source is `.env` in this repo. All except `SSH_HOST` are deployed to `/etc/split
 | `SSH_HOST` | `pi4` | SSH alias for the RPi — used by `deploy.sh` on macOS only; not deployed to RPi |
 | `RPI_LAN_IP` | `192.168.1.254` | RPi LAN IP address |
 | `KEENETIC_GW` | `192.168.1.1` | ISP gateway (your router) |
-| `VPN_SERVER_IP` | `YOUR_VPN_SERVER_IP` | AmneziaWG server endpoint IP |
+| `VPN_SERVER_IP` | *(in `.env.secrets`)* | AmneziaWG server endpoint IP — kept secret, not committed |
 | `VPN_IFACE` | `awg0` | VPN tunnel interface name |
 | `LAN_SUBNET` | `192.168.1.0/24` | Local LAN subnet |
 | `RU_SUBNET_URL` | `https://russia.iplist.opencck.org/?format=text&data=cidr4` | RU CIDR list source |
@@ -62,7 +62,7 @@ ssh pi4 "ip route get 77.88.8.8"
 # Expected output contains: via 192.168.1.1
 
 # 4. VPN server IP must route via ISP (loop prevention)
-ssh pi4 "ip route get YOUR_VPN_SERVER_IP"
+ssh pi4 "ip route get <VPN_SERVER_IP>"
 # Expected output contains: via 192.168.1.1
 ```
 
@@ -611,7 +611,7 @@ Fix: Set your router DNS server to `192.168.1.254` (see README → Deploy → Ro
 
 Symptom: VPN routing breaks after the router reboots or eth0 link drops. `ip route show | wc -l` drops to ~2. `ip route get 8.8.8.8` no longer shows `dev awg0`.
 
-Cause: When the router reboots, eth0 link drops. NetworkManager flushes all eth0 routes on the link-down event — including all ~1360 RU CIDR routes and the VPN server host route. When eth0 comes back up, NM only restores the local link route. Without the VPN server host route (`YOUR_VPN_SERVER_IP/32 via 192.168.1.1`), traffic to the VPN endpoint resolves via `awg0`, creating a routing loop.
+Cause: When the router reboots, eth0 link drops. NetworkManager flushes all eth0 routes on the link-down event — including all ~1360 RU CIDR routes and the VPN server host route. When eth0 comes back up, NM only restores the local link route. Without the VPN server host route (`<VPN_SERVER_IP>/32 via 192.168.1.1`), traffic to the VPN endpoint resolves via `awg0`, creating a routing loop.
 
 Fix: `deploy.sh` Stage 23 deploys `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — an NM dispatcher script that restores routes by running `routing.sh --no-update` when `eth0 up` is detected.
 

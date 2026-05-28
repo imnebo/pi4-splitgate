@@ -203,7 +203,12 @@ validate_key "$AWG_PRIVATE_KEY"   "AWG_PRIVATE_KEY"
 validate_key "$AWG_PUBLIC_KEY"    "AWG_PUBLIC_KEY"
 validate_key "$AWG_PRESHARED_KEY" "AWG_PRESHARED_KEY"
 
-echo "       All three keys pass 44-char base64 validation."
+if [[ -z "${VPN_SERVER_IP:-}" ]]; then
+    echo "ERROR: VPN_SERVER_IP not set in .env.secrets" >&2
+    exit 1
+fi
+
+echo "       All three keys pass 44-char base64 validation. VPN_SERVER_IP present."
 
 # ─── Stage D: SSH connectivity verification (D-06) ──────────────────────────
 echo "[3/${TOTAL_STAGES}] Verifying SSH connectivity to ${SSH_HOST}..."
@@ -239,8 +244,9 @@ echo "[6/${TOTAL_STAGES}] Rendering awg0.conf from template (${TEMPLATE})..."
 
 # Create temp file and chmod 600 BEFORE writing any key material to it (T-01-SEC)
 tmp=$(mktemp)
+env_merged_tmp=$(mktemp)
 # Register cleanup trap immediately after mktemp — runs on every exit path (T-01-SEC)
-trap 'rm -f "$tmp"' EXIT
+trap 'rm -f "$tmp" "$env_merged_tmp"' EXIT
 chmod 600 "$tmp"
 
 # Sed pipeline form (no in-place flag) — BSD/macOS portable (RESEARCH.md Pitfall 6)
@@ -250,6 +256,7 @@ sed \
     -e "s|{{PrivateKey}}|${AWG_PRIVATE_KEY}|g" \
     -e "s|{{PublicKey}}|${AWG_PUBLIC_KEY}|g" \
     -e "s|{{PresharedKey}}|${AWG_PRESHARED_KEY}|g" \
+    -e "s|{{VpnServerIp}}|${VPN_SERVER_IP}|g" \
     "$TEMPLATE" > "$tmp"
 
 echo "       Config rendered to temp file (mode 600, trap-cleaned on exit)."
@@ -271,8 +278,11 @@ echo "       awg0.conf deployed with chmod 600 + chown root:root (T-01-PERM)."
 # ─── Stage H: Deploy /etc/splitgate/vpn-gateway.env to RPi (CONF-02) ────────
 echo "[8/${TOTAL_STAGES}] Deploying vpn-gateway.env to ${SSH_HOST}:${ENV_REMOTE}..."
 
-# .env contains no secrets — 644 is correct; sourced by Phase 2 routing scripts as root
-scp ../.env "${SSH_HOST}:/tmp/vpn-gateway.env.tmp"
+# Build merged env: public vars from .env + VPN_SERVER_IP from .env.secrets
+# VPN_SERVER_IP is kept out of .env (gitignored secret); injected here at deploy time
+cat ../.env > "$env_merged_tmp"
+printf 'VPN_SERVER_IP=%s\n' "${VPN_SERVER_IP}" >> "$env_merged_tmp"
+scp "$env_merged_tmp" "${SSH_HOST}:/tmp/vpn-gateway.env.tmp"
 ssh "$SSH_HOST" "sudo mv /tmp/vpn-gateway.env.tmp ${ENV_REMOTE} && \
                  sudo chmod 644 ${ENV_REMOTE} && \
                  sudo chown root:root ${ENV_REMOTE}"
@@ -488,7 +498,7 @@ echo "   # Expected: net.ipv4.ip_forward = 1"
 echo ""
 echo " Phase 2 verification (run on RPi):"
 echo "   ip route show default                            # expect dev awg0"
-echo "   ip route get YOUR_VPN_SERVER_IP                       # expect via 192.168.1.1 (ISP)"
+echo "   ip route get \${VPN_SERVER_IP}                    # expect via 192.168.1.1 (ISP)"
 echo "   ip route get 77.88.8.8                          # expect via 192.168.1.1 (RU -> ISP)"
 echo "   ip route get 8.8.8.8                            # expect dev awg0 (foreign -> VPN)"
 echo "   sudo iptables -t nat -L POSTROUTING -n -v       # expect MASQUERADE on awg0 + eth0"

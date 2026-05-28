@@ -23,7 +23,7 @@ RPi4 (192.168.1.254) — VPN gateway
   ↓
 LAN devices (default gateway = 192.168.1.254 via router DHCP)
 
-Non-RU → awg0 → AmneziaWG VPN (endpoint: YOUR_VPN_SERVER_IP:36348)
+Non-RU → awg0 → AmneziaWG VPN (endpoint: <VPN_SERVER_IP>:<port>)
 RU CIDRs → eth0 → ISP direct (via 192.168.1.1)
 ```
 
@@ -61,7 +61,7 @@ cp .env.secrets.example .env.secrets
 SSH_HOST="pi4"              # SSH alias for the RPi (from ~/.ssh/config)
 RPI_LAN_IP=192.168.1.254    # RPi LAN IP
 KEENETIC_GW=192.168.1.1     # ISP gateway (your router)
-VPN_SERVER_IP=YOUR_VPN_SERVER_IP  # AmneziaWG server IP — must match template Endpoint
+VPN_SERVER_IP=<your-server-ip>  # AmneziaWG server IP — set in .env.secrets
 CRON_UPDATE_HOUR=5          # Hour (0–23) for daily RU list refresh
 ```
 

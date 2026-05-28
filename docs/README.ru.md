@@ -23,7 +23,7 @@ RPi4 (192.168.1.254) — VPN-шлюз
   ↓
 Устройства в LAN (шлюз по умолчанию = 192.168.1.254 через DHCP роутера)
 
-Не-RU → awg0 → AmneziaWG VPN (endpoint: YOUR_VPN_SERVER_IP:36348)
+Не-RU → awg0 → AmneziaWG VPN (endpoint: <VPN_SERVER_IP>:<port>)
 RU-подсети → eth0 → провайдер напрямую (через 192.168.1.1)
 ```
 
@@ -61,7 +61,7 @@ cp .env.secrets.example .env.secrets
 SSH_HOST="pi4"              # SSH-псевдоним RPi (из ~/.ssh/config)
 RPI_LAN_IP=192.168.1.254    # IP-адрес RPi в LAN
 KEENETIC_GW=192.168.1.1     # Шлюз провайдера (ваш роутер)
-VPN_SERVER_IP=YOUR_VPN_SERVER_IP  # IP-адрес AmneziaWG-сервера — должен совпадать с Endpoint в шаблоне
+VPN_SERVER_IP=<your-server-ip>  # IP-адрес AmneziaWG-сервера — задаётся в .env.secrets
 CRON_UPDATE_HOUR=5          # Час (0–23) ежедневного обновления списка RU-адресов
 ```
 
