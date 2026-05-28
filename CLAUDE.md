@@ -26,7 +26,8 @@ Technology stack not yet documented. Will populate after codebase mapping or fir
 ## Conventions
 
 - **After every commit, immediately run `git push`.**
-- - **After completing any task, review `README.md` and `docs/README.ru.md`. If the work touched areas covered by either file — update them before closing the task. Keep both files in sync with each other.**
+- **After completing any task, review `README.md` and `docs/README.ru.md`. If the work touched areas covered by either file — update them before closing the task. Keep both files in sync with each other.**
+- **Before closing any task, grep the entire project for references to every renamed, removed, or added concept (file names, variable names, config keys, stage numbers, CLI flags). Update all affected files: scripts, docs (`README.md`, `docs/README.ru.md`, `docs/REFERENCE.md`), example configs, and inline comments. No stale references may remain in tracked files.**
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
