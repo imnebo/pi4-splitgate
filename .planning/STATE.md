@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 11 complete — README overhaul done (1/1 plans)
-stopped_at: Phase 11 Plan 01 complete — README.md trimmed to 3 sections, docs/REFERENCE.md created, docs/README.ru.md synced
+status: Phase 9 complete — operational logging wired (1/1 plans)
+stopped_at: Phase 9 Plan 01 complete — timestamped file-append in routing.sh, update-vpn-routes, vpn-rollback.sh; logger calls removed; vpn-rollback.sh teardown adds logrotate cleanup
 last_updated: "2026-05-28T00:00:00Z"
 progress:
   total_phases: 11
-  completed_phases: 10
-  total_plans: 26
-  completed_plans: 26
-  percent: 98
+  completed_phases: 11
+  total_plans: 27
+  completed_plans: 27
+  percent: 100
 ---
 
 # State: RPi VPN Gateway
@@ -43,7 +43,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 | 6 — Documentation | ◆ Planned | 0/2 | 0% |
 | 7 — ASN Enrichment & Traffic Attribution | ✓ Complete | 3/3 done | 100% |
 | 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
-| 9 — Operational Logging | ◆ Planned | 0/? | 0% |
+| 9 — Operational Logging | ✓ Complete | 1/1 done | 100% |
 | 10 — Splitgate Ergonomics & Organization | ✓ Complete | 4/4 done | 100% |
 
 ## Requirements
@@ -87,6 +87,10 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 - Phase 10 D-10-01 (D-12): /etc/iptables/rules.v4 path in routing.sh left unchanged; iptables-persistent requires exact path
 - Phase 10 D-10-02: deploy.sh Stage 5 (mkdir /etc/splitgate/logs) inserted after AmneziaWG install — before awg0.conf render — guaranteeing namespace exists before any file deploy (Pitfall 4); TOTAL_STAGES=27; Stage 21b bug corrected to [22b/...]; dispatcher Stage 26 + logrotate Stage 27 placed after routing.sh activation Stage 25
 - Phase 10 D-10-03: splitgate dispatcher uses exec for all 5 subcommands (watch branch uses exec sudo python3); no set -euo pipefail; logrotate stanza targets /etc/splitgate/logs/vpn-gateway.log per D-19 (NOT /var/log/vpn-gateway.log)
+- Phase 9 D-03/D-04: log() pattern: "[date +%F %T] [component] $*" >> LOG_FILE; err() tee -a to file and >&2
+- Phase 9 D-05: all logger -t tag calls removed from routing.sh, update-vpn-routes, vpn-rollback.sh, vpn-status.sh
+- Phase 9 D-08: vpn-status.sh is interactive — log() is plain echo, no file write
+- Phase 9 D-11: vpn-rollback.sh Step 7b adds rm -f /etc/logrotate.d/vpn-gateway before rm -rf /etc/splitgate
 
 ## Hardware Verified
 
@@ -97,9 +101,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Last Session
 
-**Stopped at:** Phase 10 Plan 03 complete — splitgate dispatcher + logrotate config + README docs
-**Timestamp:** 2026-05-27T17:58:00Z
-**Resume:** Phase 10 fully complete (4/4 plans). All artifacts shipped: dispatcher at /usr/local/bin/splitgate, logrotate at /etc/logrotate.d/vpn-gateway, READMEs updated. Next: Phase 9 (Operational Logging) or manual deploy to RPi.
+**Stopped at:** Phase 9 Plan 01 complete — operational logging wired across all daemon scripts
+**Timestamp:** 2026-05-28T00:00:00Z
+**Resume:** All 11 phases complete. Next: manual deploy to RPi and live verification.
 
 ---
 *Initialized: 2026-05-18*

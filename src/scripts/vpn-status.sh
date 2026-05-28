@@ -19,7 +19,7 @@
 #   D-14 (--filter: partial case-insensitive domain match),
 #   D-15 (--device: filter by source LAN device IP),
 #   D-16 (--last: override default entry count),
-#   D-17 (set -euo pipefail, source /etc/splitgate/vpn-gateway.env, logger -t "vpn-status"),
+#   D-17 (set -euo pipefail, source /etc/splitgate/vpn-gateway.env),
 #   D-03 (Phase 7: single ASN lookup call seeded with all unique DST IPs),
 #   D-06 (Phase 7: ORG column after DOMAIN, format "{org} (AS{asn})" or "-"),
 #   D-07 (Phase 7: --summary flag, ORG|VPN_COUNT|ISP_COUNT|TOTAL, top 20 by TOTAL)
@@ -31,8 +31,8 @@
 
 set -euo pipefail
 
-# ─── Logging ─────────────────────────────────────────────────────────────────
-log() { logger -t "vpn-status" "$*"; }
+# ─── Logging (interactive tool — stdout only, no file write per D-08) ────────
+log() { echo "[vpn-status] $*"; }
 err() { echo "[vpn-status] ERROR: $*" >&2; }
 
 # ─── Source environment ───────────────────────────────────────────────────────

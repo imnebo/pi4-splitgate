@@ -13,3 +13,5 @@ src/configs/ru-exclude.txt
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+logs

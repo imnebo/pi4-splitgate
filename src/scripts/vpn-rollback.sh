@@ -8,7 +8,7 @@
 # Decisions honored:
 #   D-08: Rollback order — stop+disable services, flush routes, remove NAT, remove cron,
 #         restore ISP default route via static ip route add (no dhclient dependency)
-#   D-09: Silent execution + syslog via logger; final state printed to stdout
+#   D-09: File-append to /etc/splitgate/logs/vpn-gateway.log; final state printed to stdout
 #   D-18: Teardown removes /usr/local/bin/splitgate and /etc/splitgate/ (entire tree);
 #         /etc/amnezia/amneziawg/awg0.conf and AmneziaWG packages preserved
 #
@@ -30,8 +30,8 @@
 
 set -euo pipefail
 
-# ─── Logging (D-09: syslog via logger + echo to stdout for operator visibility) ─
-log() { logger -t "vpn-rollback" "$*"; echo "[rollback] $*"; }
+# ─── Logging (D-09: file-append + echo to stdout for operator visibility) ──────
+log() { echo "[$(date '+%F %T')] [vpn-rollback] $*" | tee -a /etc/splitgate/logs/vpn-gateway.log; }
 
 # ─── Guard: source env file (D-18) ───────────────────────────────────────────
 if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
@@ -129,6 +129,8 @@ log "Default route restored: default via ${KEENETIC_GW}"
 # rm -f / rm -rf handle absence silently.
 rm -f /usr/local/bin/splitgate
 log "Removed /usr/local/bin/splitgate"
+rm -f /etc/logrotate.d/vpn-gateway
+log "Removed /etc/logrotate.d/vpn-gateway"
 rm -rf /etc/splitgate
 log "Removed /etc/splitgate/ (entire tree)"
 
@@ -149,7 +151,8 @@ echo " Default route restored: via ${KEENETIC_GW}"
 echo ""
 echo " Removed (D-18 splitgate teardown):"
 echo "   /usr/local/bin/splitgate"
-echo "   /etc/splitgate/ (entire tree, including white-list.txt, white-list-extended.txt, ru-exclude.txt, vpn-gateway.env)"
+echo "   /etc/logrotate.d/vpn-gateway"
+echo "   /etc/splitgate/ (entire tree, including white-list.txt, white-list-extended.txt, ru-exclude.txt, vpn-gateway.env, logs/)"
 echo ""
 echo " Preserved (not removed):"
 echo "   /etc/amnezia/amneziawg/awg0.conf"

@@ -153,10 +153,10 @@ ssh pi4 "sudo journalctl -k -n 50 --no-pager | grep -E '\[VPN\]|\[ISP\]'"
 # vpn-routing.service start/stop events
 ssh pi4 "sudo journalctl -u vpn-routing -n 50 --no-pager"
 
-# Daily subnet update log
-ssh pi4 "sudo journalctl -t vpn-routes -n 20 --no-pager"
+# Daily subnet update log (Phase 9: file-based)
+ssh pi4 "sudo grep '\[vpn-routes\]' /etc/splitgate/logs/vpn-gateway.log | tail -20"
 
-# NM dispatcher route restore events (carrier-change recovery)
+# NM dispatcher route restore events (carrier-change recovery — still journald)
 ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 ```
 
@@ -275,7 +275,7 @@ Stage 22b SCPs `src/configs/ru-exclude.txt` to `/etc/splitgate/ru-exclude.txt`.
 
 ```bash
 ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
-ssh pi4 "sudo journalctl -t vpn-routes -n 10 --no-pager"
+ssh pi4 "sudo grep '\[vpn-routes\]' /etc/splitgate/logs/vpn-gateway.log | tail -10"
 # expect: "Excluding N CIDR(s) from RU subnet download" followed by rebuild log
 ```
 
@@ -467,11 +467,11 @@ Behavior:
 - If download fails: exits 0 (existing routes remain intact); checks for missing VPN server host
   route and rebuilds if absent (carrier-change recovery)
 
-Logs via `logger -t "vpn-routes"` (visible in journald).
+Logs to `/etc/splitgate/logs/vpn-gateway.log` (tag `[vpn-routes]`).
 
 ```bash
 ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
-ssh pi4 "sudo journalctl -t vpn-routes -n 10 --no-pager"
+ssh pi4 "sudo grep vpn-routes /etc/splitgate/logs/vpn-gateway.log | tail -10"
 ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 ```
 

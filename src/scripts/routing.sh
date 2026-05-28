@@ -40,13 +40,15 @@ EXCEPTIONS_FILE="/etc/splitgate/white-list-extended.txt"
 SUBNET_TMP="/tmp/ru-subnets.tmp"
 IPTABLES_RULES="/etc/iptables/rules.v4"
 
-# ─── Logging functions ────────────────────────────────────────────────────────
+# ─── Logging functions (Phase 9: file-append to /etc/splitgate/logs/) ────────
+LOG_FILE="/etc/splitgate/logs/vpn-gateway.log"
+
 log() {
-    echo "[routing] $*"
+    echo "[$(date '+%F %T')] [routing] $*" >> "${LOG_FILE}"
 }
 
 err() {
-    echo "[routing] ERROR: $*" >&2
+    echo "[$(date '+%F %T')] [routing] ERROR: $*" | tee -a "${LOG_FILE}" >&2
 }
 
 # ─── Argument parsing (D-05) ─────────────────────────────────────────────────
