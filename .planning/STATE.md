@@ -69,8 +69,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 - routing.sh D-07: iptables idempotency via iptables -C check before every -A — no duplicate MASQUERADE rules
 - deploy.sh D-11: routing.sh deployed via SCP /tmp staging then sudo mv + chmod +x (matches Phase 1 pattern)
 - deploy.sh D-12: --no-run flag skips routing.sh activation; without it, routing.sh runs automatically after deploy
-- Phase 5 D-06/D-08: routing.sh renames SUBNET_FILE → WHITE_LIST_FILE (/etc/white-list.txt); Stage 5b added to load /etc/white-list-extended.txt when present (silent skip when absent)
-- Phase 5 D-14: vpn-rollback.sh Step 4c added — rm -f /etc/white-list-extended.txt; /etc/white-list.txt preserved (not removed) during rollback
+- Phase 5 D-06/D-08: routing.sh renames SUBNET_FILE → WHITE_LIST_FILE (/etc/white-list.txt); Stage 5b added to load /etc/splitgate/isp-routes-custom.txt when present (silent skip when absent) [was white-list-extended.txt — renamed in quick task 2026-05-28]
+- Phase 5 D-14: vpn-rollback.sh updated — /etc/splitgate/ tree includes isp-routes-custom.txt + vpn-routes-custom.txt; /etc/white-list.txt preserved during rollback [was white-list-extended.txt — renamed in quick task 2026-05-28]
+- Quick 2026-05-28: white-list-extended.txt → isp-routes-custom.txt (rename); vpn-routes-custom.txt added (Stage 5c, VPN-force override — highest priority, deletes ISP route then adds via awg0)
 - Phase 5 D-10/D-11: vpn-status.sh --via=vpn|isp filter applied at output time (not entry collection); strict string validation; composes with --filter/--device/--last
 - Phase 5 deploy: deploy.sh TOTAL_STAGES=22; Stage 21 conditionally SCPs exception file (skip if absent); Stage 22 activation drops --no-update for first-deploy correctness
 - Phase 7 D-06: ORG column placed after DOMAIN and before PATH; format "{org} (AS{asn})" or "-" for unknown
