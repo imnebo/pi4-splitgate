@@ -9,14 +9,105 @@
 SPLITGATE_DIR="/etc/splitgate"
 CMD="${1:-}"
 shift || true
+
+# Check if any remaining arg is /?
+has_help=false
+for a in "$@"; do
+  [[ "$a" == "/?" ]] && has_help=true && break
+done
+
 case "$CMD" in
-  status)   exec sudo "$SPLITGATE_DIR/vpn-status.sh" "$@" ;;
-  watch)    exec sudo python3 "$SPLITGATE_DIR/watch-routes.py" "$@" ;;
-  rollback) exec sudo "$SPLITGATE_DIR/vpn-rollback.sh" "$@" ;;
-  routing)  exec sudo "$SPLITGATE_DIR/routing.sh" "$@" ;;
-  update)   exec sudo "$SPLITGATE_DIR/update-vpn-routes" "$@" ;;
+  status)
+    if $has_help; then
+      echo "splitgate status — show recent VPN/ISP traffic from kernel log"
+      echo ""
+      echo "Usage: splitgate status [--last=N] [--filter=STRING] [--device=IP] [--via=vpn|isp] [--summary]"
+      echo ""
+      echo "  --last=N         Show last N log entries (default: 200)"
+      echo "  --filter=STRING  Case-insensitive domain/host substring filter"
+      echo "  --device=IP      Show only traffic from this LAN device IP"
+      echo "  --via=vpn|isp    Show only VPN-routed or ISP-routed connections"
+      echo "  --summary        Group by org — show ORG|VPN_COUNT|ISP_COUNT|TOTAL (top 20)"
+      echo ""
+      echo "Examples:"
+      echo "  splitgate status"
+      echo "  splitgate status --via=vpn"
+      echo "  splitgate status --device=192.168.1.50 --filter=youtube"
+      echo "  splitgate status --summary --via=isp"
+      exit 0
+    fi
+    exec sudo "$SPLITGATE_DIR/vpn-status.sh" "$@"
+    ;;
+  watch)
+    if $has_help; then
+      echo "splitgate watch — real-time enriched VPN/ISP traffic stream"
+      echo ""
+      echo "Usage: splitgate watch [--src IP] [--no-dns] [--no-asn] [--tag {VPN,ISP,both}]"
+      echo ""
+      echo "  --src IP         Show only lines where SRC matches this IP"
+      echo "  --no-dns         Skip reverse DNS lookups; show raw destination IPs"
+      echo "  --no-asn         Disable background ASN lookups (pure no-network mode)"
+      echo "  --tag VPN|ISP|both  Filter by routing tag (default: both)"
+      echo ""
+      echo "Examples:"
+      echo "  splitgate watch"
+      echo "  splitgate watch --src 192.168.1.50"
+      echo "  splitgate watch --tag VPN --no-dns"
+      exit 0
+    fi
+    exec sudo python3 "$SPLITGATE_DIR/watch-routes.py" "$@"
+    ;;
+  rollback)
+    if $has_help; then
+      echo "splitgate rollback — remove VPN routing, restore default ISP gateway"
+      echo ""
+      echo "Usage: splitgate rollback"
+      echo ""
+      echo "  Removes awg0 routes, flushes iptables NAT/FORWARD rules, restores"
+      echo "  default route via ISP gateway. Fully reversible — re-run deploy.sh to undo."
+      echo ""
+      echo "  No arguments."
+      exit 0
+    fi
+    exec sudo "$SPLITGATE_DIR/vpn-rollback.sh" "$@"
+    ;;
+  routing)
+    if $has_help; then
+      echo "splitgate routing — rebuild split-tunnel routes and iptables rules"
+      echo ""
+      echo "Usage: splitgate routing [--no-update]"
+      echo ""
+      echo "  --no-update   Skip downloading fresh RU subnet list; use cached"
+      echo "                /etc/splitgate/white-list.txt instead"
+      echo ""
+      echo "  Without --no-update: downloads RU CIDRs, flushes and rebuilds all"
+      echo "  routes and iptables rules from scratch (idempotent)."
+      echo ""
+      echo "Examples:"
+      echo "  splitgate routing"
+      echo "  splitgate routing --no-update"
+      exit 0
+    fi
+    exec sudo "$SPLITGATE_DIR/routing.sh" "$@"
+    ;;
+  update)
+    if $has_help; then
+      echo "splitgate update — fetch fresh RU subnet list and reload routes if changed"
+      echo ""
+      echo "Usage: splitgate update"
+      echo ""
+      echo "  Downloads RU CIDR list, compares sha256 checksum with cached copy."
+      echo "  If changed: replaces white-list.txt and re-runs routing --no-update."
+      echo "  If unchanged: exits without touching routes."
+      echo ""
+      echo "  Runs automatically via cron daily. No arguments."
+      exit 0
+    fi
+    exec sudo "$SPLITGATE_DIR/update-vpn-routes" "$@"
+    ;;
   *)
     echo "Usage: splitgate {status|watch|rollback|routing|update} [args...]"
+    echo "       splitgate <command> /? — per-command help"
     exit 1
     ;;
 esac
