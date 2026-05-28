@@ -321,14 +321,22 @@ scp -o BatchMode=yes "${ROUTING_SH_LOCAL}" "${SSH_HOST}:${ROUTING_SH_TMP}"
 ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${ROUTING_SH_TMP} ${ROUTING_SH_REMOTE} && sudo chmod +x ${ROUTING_SH_REMOTE}"
 echo "       routing.sh deployed to ${ROUTING_SH_REMOTE} (chmod +x)"
 
-# ─── Stage 12: Activate routing.sh (unless --no-run) (D-12) ─────────────────
+# ─── Stage 12: Bring up VPN tunnel + Activate routing.sh (D-12) ─────────────
+# awg-quick up is not idempotent (Pitfall 5) — guard with ip link show before running.
 if [ "${RUN_ROUTING}" = "true" ]; then
-  echo "[12/${TOTAL_STAGES}] Activating routing.sh on ${SSH_HOST}..."
+  echo "[12/${TOTAL_STAGES}] Bringing up VPN tunnel and activating routing.sh on ${SSH_HOST}..."
+  if ssh -o BatchMode=yes "${SSH_HOST}" "ip link show awg0" &>/dev/null; then
+    echo "       awg0 already up — skipping awg-quick up."
+  else
+    echo "       awg0 not up — running awg-quick up awg0..."
+    ssh -o BatchMode=yes "${SSH_HOST}" "sudo awg-quick up awg0"
+    echo "       awg0 tunnel up."
+  fi
   ssh -o BatchMode=yes "${SSH_HOST}" "sudo ${ROUTING_SH_REMOTE}"
   echo "       routing.sh activation complete — split-tunnel active"
 else
   echo "[12/${TOTAL_STAGES}] Skipping routing.sh activation (--no-run). Run manually:"
-  echo "       ssh ${SSH_HOST} \"sudo ${ROUTING_SH_REMOTE}\""
+  echo "       ssh ${SSH_HOST} \"sudo awg-quick up awg0 && sudo ${ROUTING_SH_REMOTE}\""
 fi
 
 # ─── Stage 13: Deploy vpn-routing.service unit file to RPi (D-11) ──────────
@@ -440,8 +448,8 @@ ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${LOGROTATE_CONF_TMP} ${LOGROTATE_CO
 echo "       logrotate config deployed (mode 644, root:root)."
 
 # ─── Final Summary ───────────────────────────────────────────────────────────
-# Tunnel bring-up is NOT automated — RESEARCH.md Pitfall 5 (awg-quick up is not idempotent)
-# The commands below are printed for the developer to run manually.
+# Tunnel bring-up is automated in Stage 12 (guarded by ip link show — Pitfall 5 safe).
+# --no-run skips both tunnel bring-up and routing.sh; run manually in that case.
 echo ""
 echo "================================================================"
 echo " Phase 1 + 2 + 3 (autostart + cron + rollback) + Phase 10 (splitgate ergonomics) deploy successful."
@@ -467,13 +475,9 @@ echo "   PHASE 8: ${EXCLUDE_LIST_REMOTE} (mode 644, root:root, optional — depl
 echo "   PHASE 10: ${SPLITGATE_DISPATCHER_REMOTE} (chmod +x, root:root — ergonomic CLI dispatcher)"
 echo "   PHASE 10: ${LOGROTATE_CONF_REMOTE} (mode 644, root:root — log rotation config for /etc/splitgate/logs/vpn-gateway.log)"
 echo ""
-echo " Next steps (run manually — tunnel bring-up is intentionally NOT automated):"
+echo " Next steps:"
 echo ""
-echo "   # Bring up the VPN tunnel (not automated — Pitfall 5: not idempotent):"
-# awg_up_cmd is assembled from parts so that deploy.sh never executes it directly
-awg_cmd="awg-quick"
-echo "   ssh pi4 \"sudo ${awg_cmd} up awg0\""
-echo ""
+echo "   # Tunnel was brought up automatically in Stage 12 (if --no-run not passed)."
 echo "   # Verify peer handshake:"
 echo "   ssh pi4 \"sudo awg show\""
 echo ""
