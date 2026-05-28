@@ -55,7 +55,7 @@ fi
 # ─── Stage 1: Download RU subnet list to temp file ───────────────────────────
 log "Checking for RU subnet list update..."
 
-if ! curl -fsSL "${EFFECTIVE_URL}" -o "${SUBNET_TMP}" 2>/dev/null; then
+if ! curl -fsSLg "${EFFECTIVE_URL}" -o "${SUBNET_TMP}" 2>/dev/null; then
     log "Download failed — skipping subnet update"
     rm -f "${SUBNET_TMP}"
     # NM carrier-change recovery: if VPN server host route is missing, routes were flushed
