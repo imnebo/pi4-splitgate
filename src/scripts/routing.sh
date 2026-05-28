@@ -84,10 +84,25 @@ if [[ "$SKIP_DOWNLOAD" == true ]]; then
         exit 1
     fi
 else
-    log "Stage 1: Downloading RU subnet list from ${RU_SUBNET_URL}"
+    # Build effective URL: append &exclude[cidr4]=CIDR for each line in ru-exclude.txt.
+    # Mirrors update-vpn-routes logic so both scripts produce the same filtered list.
+    EFFECTIVE_URL="${RU_SUBNET_URL}"
+    EXCLUDE_FILE="/etc/splitgate/ru-exclude.txt"
+    if [[ -f "${EXCLUDE_FILE}" ]]; then
+        exclude_count=0
+        while IFS= read -r line; do
+            [[ "${line}" =~ ^# || -z "${line}" ]] && continue
+            EFFECTIVE_URL="${EFFECTIVE_URL}&exclude[cidr4]=${line}"
+            (( exclude_count++ )) || true
+        done < "${EXCLUDE_FILE}"
+        if (( exclude_count > 0 )); then
+            log "Stage 1: Applying ${exclude_count} exclusion(s) from ${EXCLUDE_FILE}"
+        fi
+    fi
+    log "Stage 1: Downloading RU subnet list"
     # T-02-01: Download to temp file first; mv to WHITE_LIST_FILE only on success.
     # This prevents a partial/corrupt download from replacing a good existing file.
-    if curl -fsSL "${RU_SUBNET_URL}" -o "${SUBNET_TMP}"; then
+    if curl -fsSL "${EFFECTIVE_URL}" -o "${SUBNET_TMP}"; then
         mv "${SUBNET_TMP}" "${WHITE_LIST_FILE}"
         log "Subnet list downloaded and saved to ${WHITE_LIST_FILE}"
     else
