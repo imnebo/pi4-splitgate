@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 10 complete — all 4/4 plans done
-stopped_at: Phase 10 Plan 03 complete — scripts/splitgate dispatcher + configs/logrotate-vpn-gateway + README docs
-last_updated: "2026-05-27T17:58:00Z"
+status: Phase 11 complete — README overhaul done (1/1 plans)
+stopped_at: Phase 11 Plan 01 complete — README.md trimmed to 3 sections, docs/REFERENCE.md created, docs/README.ru.md synced
+last_updated: "2026-05-28T00:00:00Z"
 progress:
-  total_phases: 10
-  completed_phases: 9
-  total_plans: 25
-  completed_plans: 25
-  percent: 96
+  total_phases: 11
+  completed_phases: 10
+  total_plans: 26
+  completed_plans: 26
+  percent: 98
 ---
 
 # State: RPi VPN Gateway
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 10: Splitgate Ergonomics — COMPLETE (4/4 plans)**
+**Phase 11: README Documentation Overhaul — COMPLETE (1/1 plans)**
 
 10-00 complete: all source dirs moved to src/.
 10-01 complete: all internal /etc/ paths in 7 scripts/units migrated to /etc/splitgate/; vpn-rollback.sh D-18 teardown added.

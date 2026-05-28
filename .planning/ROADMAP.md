@@ -1,7 +1,7 @@
 # Roadmap: RPi VPN Gateway
 
 **Created:** 2026-05-18
-**Phases:** 10
+**Phases:** 11
 **Requirements mapped:** 20/20 ✓
 
 ---
@@ -20,6 +20,7 @@
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from downloaded RU list so they route via VPN | ✓ Complete |
 | 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
 | 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/, splitgate dispatcher CLI, log rotation | ✓ Complete |
+| 11 | README Documentation Overhaul | Trim README to 3 quick-start sections; all technical detail in docs/REFERENCE.md | ✓ Complete |
 
 ---
 
@@ -291,5 +292,18 @@ Plans:
 **Phase 10 complete ✓**
 
 ---
+
+### Phase 11: README Documentation Overhaul
+
+**Goal:** Trim README.md to ~150 lines (3 sections: purpose, deploy, commands); extract all technical detail into `docs/REFERENCE.md`; sync `docs/README.ru.md`
+**Requirements**: None mapped (docs-only phase)
+**Depends on:** Phase 10 (final filesystem layout + splitgate CLI)
+**Plans:** 1 plan
+
+Plans:
+
+- [x] 11-01-PLAN.md — Rewrite README.md (3 sections), create docs/REFERENCE.md, sync docs/README.ru.md ✓ 2026-05-28
+
+---
 *Created: 2026-05-18*
-*Updated: 2026-05-27 — Phase 10 replanned: 4 plans across 3 waves (Wave 0: src/ restructuring; Wave 1: path migration + deploy.sh updates parallel; Wave 2: new dispatcher + logrotate + docs)*
+*Updated: 2026-05-28 — Phase 11 added: README documentation overhaul; REFERENCE.md created*
