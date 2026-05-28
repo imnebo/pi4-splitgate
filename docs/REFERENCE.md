@@ -35,7 +35,7 @@ Source is `.env` in this repo. All except `SSH_HOST` are deployed to `/etc/split
 | Autostart | 13–14 | Reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot, deploy `update-vpn-routes` |
 | Cron + rollback | 15–17 | Write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh`, ensure dnsmasq installed |
 | Logging | 18–20 | Deploy `dnsmasq.conf`, enable and start dnsmasq, deploy `vpn-status.sh`, deploy `watch-routes.py` |
-| Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` and `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
+| Custom routes + NM | 21–22 | Conditionally deploy `isp-routes-custom.txt`, `vpn-routes-custom.txt`, and `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
 | ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` |
 | Final activation | 24 | Bring up `awg0` tunnel (if not up), run `routing.sh` to apply all routes, iptables LOG rules, and exception routes |
 | Splitgate artifacts | 25–26 | Deploy `splitgate` dispatcher to `/usr/local/bin/splitgate` (chmod +x); deploy `logrotate-vpn-gateway` |
@@ -169,9 +169,22 @@ resolver, bypassing dnsmasq's query log, and the DOMAIN column will show raw IPs
 
 ---
 
-## Custom Exceptions
+## Custom Route Overrides
 
-Use this when traffic that should exit via ISP is being routed via VPN. Common case: a game server,
+Two files let you override the auto-downloaded RU list without modifying it:
+
+| File | Purpose | Priority |
+|------|---------|----------|
+| `isp-routes-custom.txt` | Extra CIDRs routed via ISP (bypass VPN) | Added on top of RU list |
+| `vpn-routes-custom.txt` | CIDRs forced through VPN, even if in RU list | Highest — overrides everything |
+
+If the same CIDR appears in both files, `vpn-routes-custom.txt` wins.
+
+---
+
+### ISP-bypass custom routes
+
+Use when traffic that should exit via ISP is being routed via VPN. Common case: a game server,
 CDN, or streaming platform whose IP range is not in the RU CIDR list.
 
 **Step 1: Identify traffic exiting via VPN that should use ISP**
@@ -191,10 +204,10 @@ whois <destination-ip>
 
 Alternatively: `https://ipinfo.io/<destination-ip>`
 
-**Step 3: Create the exception file**
+**Step 3: Create the file**
 
 ```bash
-cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
+cp src/configs/isp-routes-custom.txt.example src/configs/isp-routes-custom.txt
 ```
 
 Edit and add CIDRs (one per line, whole-line comments only, no inline comments):
@@ -204,7 +217,7 @@ Edit and add CIDRs (one per line, whole-line comments only, no inline comments):
 95.181.176.0/22
 ```
 
-Note: `src/configs/white-list-extended.txt` is gitignored — never committed.
+Note: `src/configs/isp-routes-custom.txt` is gitignored — never committed.
 
 **Step 4: Deploy**
 
@@ -212,7 +225,7 @@ Note: `src/configs/white-list-extended.txt` is gitignored — never committed.
 bash src/deploy.sh
 ```
 
-Stage 22 SCPs the file to `/etc/splitgate/white-list-extended.txt`. Stage 25 re-runs `routing.sh`.
+Stage 21 SCPs the file to `/etc/splitgate/isp-routes-custom.txt`. `routing.sh` Stage 5b loads the routes on activation.
 
 **Step 5: Verify**
 
@@ -222,6 +235,61 @@ ssh pi4 "ip route get <your-exception-ip>"
 
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 # Your exception traffic should appear here
+```
+
+---
+
+### VPN-force custom routes
+
+Use when a CIDR is in the RU list but you want it to exit via VPN anyway (e.g., RU CDN nodes serving
+foreign content, or specific ranges you want geo-shifted).
+
+**Step 1: Identify traffic exiting via ISP that should use VPN**
+
+```bash
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
+```
+
+Look for domains or IPs that should route via VPN. Note their destination IPs.
+
+**Step 2: Resolve the IP to a CIDR**
+
+```bash
+whois <destination-ip>
+# Look for "route:" or "CIDR:" field — e.g. 77.88.0.0/18
+```
+
+**Step 3: Create the file**
+
+```bash
+cp src/configs/vpn-routes-custom.txt.example src/configs/vpn-routes-custom.txt
+```
+
+Edit and add CIDRs (one per line, whole-line comments only, no inline comments):
+
+```
+77.88.0.0/18
+5.255.255.0/24
+```
+
+Note: `src/configs/vpn-routes-custom.txt` is gitignored — never committed.
+
+**Step 4: Deploy**
+
+```bash
+bash src/deploy.sh
+```
+
+Stage 21b SCPs the file to `/etc/splitgate/vpn-routes-custom.txt`. `routing.sh` Stage 5c deletes any existing ISP route for each CIDR and adds it via `awg0`.
+
+**Step 5: Verify**
+
+```bash
+ssh pi4 "ip route get <your-vpn-force-ip>"
+# Expected output contains: dev awg0
+
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn"
+# Your forced traffic should appear here
 ```
 
 ---
@@ -342,8 +410,9 @@ bash src/deploy.sh
 ├── asn-lookup.py
 ├── vpn-gateway.env
 ├── white-list.txt          (generated at runtime)
-├── white-list-extended.txt (optional)
-├── ru-exclude.txt          (optional)
+├── isp-routes-custom.txt  (optional — ISP-bypass custom routes)
+├── vpn-routes-custom.txt  (optional — VPN-force custom routes)
+├── ru-exclude.txt          (optional — server-side RU list exclusions)
 └── logs/                   (created at deploy; Phase 9 writes vpn-gateway.log here)
 
 /usr/local/bin/splitgate    (dispatcher CLI)
@@ -389,7 +458,8 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"   # activate after --no-run deploy
 Flush-and-rebuild split-tunnel routing. Idempotent — safe to re-run at any time.
 
 On each run: downloads RU CIDRs → flushes existing VPN routes → adds VPN server host route →
-adds RU CIDR routes via `KEENETIC_GW` → loads `white-list-extended.txt` (if present) →
+adds RU CIDR routes via `KEENETIC_GW` → loads `isp-routes-custom.txt` (Stage 5b, if present) →
+loads `vpn-routes-custom.txt` (Stage 5c, if present — overrides any ISP routes for those CIDRs) →
 sets default route via `awg0` → configures MASQUERADE and iptables LOG rules → saves via `iptables-save`.
 
 | Flag | Description |

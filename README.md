@@ -65,19 +65,25 @@ VPN_SERVER_IP=<your-server-ip>  # AmneziaWG server IP — set in .env.secrets
 CRON_UPDATE_HOUR=5          # Hour (0–23) for daily RU list refresh
 ```
 
-**Optional — ISP bypass exceptions** (`src/configs/white-list-extended.txt`): CIDRs that should bypass VPN and exit via ISP regardless of the RU list. Create from example when needed:
+**Optional — ISP-bypass custom routes** (`src/configs/isp-routes-custom.txt`): CIDRs that bypass VPN and exit via ISP, added on top of the auto-downloaded RU list. Create from example when needed:
 
 ```bash
-cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
+cp src/configs/isp-routes-custom.txt.example src/configs/isp-routes-custom.txt
 ```
 
-**Optional — RU list exclusions** (`src/configs/ru-exclude.txt`): CIDRs to strip from the downloaded RU list so they route via VPN (use when the RU list incorrectly includes a range you want tunneled). Create from example when needed:
+**Optional — VPN-force custom routes** (`src/configs/vpn-routes-custom.txt`): CIDRs forced through VPN even if present in the auto-downloaded RU list. Highest-priority override. Create from example when needed:
+
+```bash
+cp src/configs/vpn-routes-custom.txt.example src/configs/vpn-routes-custom.txt
+```
+
+**Optional — RU list exclusions** (`src/configs/ru-exclude.txt`): CIDRs to strip from the downloaded RU list server-side (use when the RU list incorrectly includes a range you want tunneled). Create from example when needed:
 
 ```bash
 cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
 ```
 
-Both files are gitignored. Full workflow: [docs/REFERENCE.md](docs/REFERENCE.md).
+All three files are gitignored. Full workflow: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ### 3. Router setup (Keenetic)
 

@@ -15,7 +15,8 @@
 #   D-06 — Flush-and-rebuild: delete all awg0 routes + VPN server host route, then rebuild
 #   D-07 — iptables idempotency: iptables -C check before every iptables -A
 #   D-08 — Single script: download, flush, routes, NAT, iptables-persistent (all in one)
-#   D-08(P5) — Stage 5b loads /etc/splitgate/white-list-extended.txt if present (silent skip if absent)
+#   D-08(P5) — Stage 5b loads /etc/splitgate/isp-routes-custom.txt if present (silent skip if absent)
+#   D-08(P5b) — Stage 5c loads /etc/splitgate/vpn-routes-custom.txt if present; overrides ISP routes (silent skip if absent)
 #   D-09 — Default route via awg0 set by this script (ROUT-04)
 #   D-10 — NAT iptables rules configured inside this script (NAT-01, NAT-02)
 #
@@ -36,7 +37,8 @@ set -euo pipefail
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 WHITE_LIST_FILE="/etc/splitgate/white-list.txt"
-EXCEPTIONS_FILE="/etc/splitgate/white-list-extended.txt"
+ISP_CUSTOM_FILE="/etc/splitgate/isp-routes-custom.txt"
+VPN_FORCE_FILE="/etc/splitgate/vpn-routes-custom.txt"
 SUBNET_TMP="/tmp/ru-subnets.tmp"
 IPTABLES_RULES="/etc/iptables/rules.v4"
 
@@ -183,23 +185,42 @@ while IFS= read -r subnet; do
 done < "${WHITE_LIST_FILE}"
 log "RU subnet routes added: ${ADDED} routes via ${KEENETIC_GW}"
 
-# ─── Stage 5b: Load exception CIDRs from EXCEPTIONS_FILE (D-05, D-08(P5)) ────
-# If /etc/splitgate/white-list-extended.txt is present, add each CIDR via KEENETIC_GW.
+# ─── Stage 5b: Load ISP-custom CIDRs from ISP_CUSTOM_FILE (D-05, D-08(P5)) ───
+# If /etc/splitgate/isp-routes-custom.txt is present, add each CIDR via KEENETIC_GW.
 # Absence of the file is a normal state — skip silently with a log message (D-05).
 # T-05-01: CIDRs passed as args to ip route add — no eval; malformed entries
 #          suppressed by 2>/dev/null || true (same trust model as Stage 5 T-02-02).
 EX_ADDED=0
-if [[ -f "${EXCEPTIONS_FILE}" ]]; then
-    log "Stage 5b: Loading exception CIDRs from ${EXCEPTIONS_FILE}..."
+if [[ -f "${ISP_CUSTOM_FILE}" ]]; then
+    log "Stage 5b: Loading ISP-custom CIDRs from ${ISP_CUSTOM_FILE}..."
     while IFS= read -r subnet; do
         [[ -z "${subnet}" ]] && continue
         [[ "${subnet}" =~ ^[[:space:]]*# ]] && continue
         ip route add "${subnet}" via "${KEENETIC_GW}" 2>/dev/null || true
         (( EX_ADDED++ )) || true
-    done < "${EXCEPTIONS_FILE}"
-    log "Exception routes added: ${EX_ADDED} routes via ${KEENETIC_GW}"
+    done < "${ISP_CUSTOM_FILE}"
+    log "ISP-custom routes added: ${EX_ADDED} routes via ${KEENETIC_GW}"
 else
-    log "Stage 5b: ${EXCEPTIONS_FILE} not found — no exception routes loaded (D-05)"
+    log "Stage 5b: ${ISP_CUSTOM_FILE} not found — no ISP-custom routes loaded (D-05)"
+fi
+
+# ─── Stage 5c: Load VPN-force CIDRs from VPN_FORCE_FILE (D-05, D-08(P5b)) ────
+# If /etc/splitgate/vpn-routes-custom.txt is present, delete any existing ISP route
+# for each CIDR and add it via awg0. This overrides the RU list and isp-routes-custom.txt.
+# Absence of the file is a normal state — skip silently with a log message (D-05).
+VPN_FORCED=0
+if [[ -f "${VPN_FORCE_FILE}" ]]; then
+    log "Stage 5c: Loading VPN-force CIDRs from ${VPN_FORCE_FILE}..."
+    while IFS= read -r subnet; do
+        [[ -z "${subnet}" ]] && continue
+        [[ "${subnet}" =~ ^[[:space:]]*# ]] && continue
+        ip route del "${subnet}" 2>/dev/null || true
+        ip route add "${subnet}" dev "${VPN_IFACE}" 2>/dev/null || true
+        (( VPN_FORCED++ )) || true
+    done < "${VPN_FORCE_FILE}"
+    log "VPN-force routes added: ${VPN_FORCED} routes via ${VPN_IFACE}"
+else
+    log "Stage 5c: ${VPN_FORCE_FILE} not found — no VPN-force routes loaded (D-05)"
 fi
 
 # ─── Stage 6: Set default route via VPN (ROUT-04, D-09) ─────────────────────
@@ -317,7 +338,8 @@ log "routing.sh complete — split-tunnel active"
 log "  VPN interface:   ${VPN_IFACE}"
 log "  VPN server:      ${VPN_SERVER_IP}/32 via ${KEENETIC_GW} (loop prevention)"
 log "  RU subnets:      ${ADDED} routes via ${KEENETIC_GW}"
-log "  Exceptions:      ${EX_ADDED} routes via ${KEENETIC_GW} (from ${EXCEPTIONS_FILE})"
+log "  ISP-custom:      ${EX_ADDED} routes via ${KEENETIC_GW} (from ${ISP_CUSTOM_FILE})"
+log "  VPN-force:       ${VPN_FORCED} routes via ${VPN_IFACE} (from ${VPN_FORCE_FILE})"
 log "  Default:         dev ${VPN_IFACE} (all other traffic → VPN)"
 log "  iptables rules:  ${IPTABLES_RULES}"
 log "  iptables LOG:    [VPN] on ${VPN_IFACE}, [ISP] on eth0 (NEW only, 10/min limit)"

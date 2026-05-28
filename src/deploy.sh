@@ -65,9 +65,12 @@ WATCH_ROUTES_TMP="/tmp/watch-routes.py.tmp"
 ASN_LOOKUP_LOCAL="scripts/asn-lookup.py"
 ASN_LOOKUP_REMOTE="/etc/splitgate/asn-lookup.py"
 ASN_LOOKUP_TMP="/tmp/asn-lookup.py.tmp"
-WHITE_LIST_EXT_LOCAL="configs/white-list-extended.txt"
-WHITE_LIST_EXT_REMOTE="/etc/splitgate/white-list-extended.txt"
-WHITE_LIST_EXT_TMP="/tmp/white-list-extended.tmp"
+ISP_CUSTOM_LOCAL="configs/isp-routes-custom.txt"
+ISP_CUSTOM_REMOTE="/etc/splitgate/isp-routes-custom.txt"
+ISP_CUSTOM_TMP="/tmp/isp-routes-custom.tmp"
+VPN_FORCE_LOCAL="configs/vpn-routes-custom.txt"
+VPN_FORCE_REMOTE="/etc/splitgate/vpn-routes-custom.txt"
+VPN_FORCE_TMP="/tmp/vpn-routes-custom.tmp"
 EXCLUDE_LIST_LOCAL="configs/ru-exclude.txt"
 EXCLUDE_LIST_REMOTE="/etc/splitgate/ru-exclude.txt"
 EXCLUDE_LIST_TMP="/tmp/ru-exclude.tmp"
@@ -83,7 +86,7 @@ LOGROTATE_CONF_LOCAL="configs/logrotate-vpn-gateway"
 LOGROTATE_CONF_REMOTE="/etc/logrotate.d/vpn-gateway"
 LOGROTATE_CONF_TMP="/tmp/logrotate-vpn-gateway.tmp"
 
-TOTAL_STAGES=26
+TOTAL_STAGES=27
 
 # ─── Argument Parsing (D-12) ─────────────────────────────────────────────────
 RUN_ROUTING=true
@@ -390,18 +393,28 @@ scp -o BatchMode=yes "${WATCH_ROUTES_LOCAL}" "${SSH_HOST}:${WATCH_ROUTES_TMP}"
 ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${WATCH_ROUTES_TMP} ${WATCH_ROUTES_REMOTE} && sudo chmod +x ${WATCH_ROUTES_REMOTE} && sudo chown root:root ${WATCH_ROUTES_REMOTE}"
 echo "       watch-routes.py deployed (chmod +x, root:root)."
 
-# ─── Stage 22: Deploy white-list-extended.txt to RPi (D-05, D-12, D-13) ─────
-echo "[21/${TOTAL_STAGES}] Deploying white-list-extended.txt to ${SSH_HOST} (if present)..."
-if [[ -f "${WHITE_LIST_EXT_LOCAL}" ]]; then
-    scp -o BatchMode=yes "${WHITE_LIST_EXT_LOCAL}" "${SSH_HOST}:${WHITE_LIST_EXT_TMP}"
-    ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${WHITE_LIST_EXT_TMP} ${WHITE_LIST_EXT_REMOTE} && sudo chmod 644 ${WHITE_LIST_EXT_REMOTE} && sudo chown root:root ${WHITE_LIST_EXT_REMOTE}"
-    echo "       white-list-extended.txt deployed (mode 644, root:root)."
+# ─── Stage 22: Deploy isp-routes-custom.txt to RPi (D-05) ───────────────────
+echo "[21/${TOTAL_STAGES}] Deploying isp-routes-custom.txt to ${SSH_HOST} (if present)..."
+if [[ -f "${ISP_CUSTOM_LOCAL}" ]]; then
+    scp -o BatchMode=yes "${ISP_CUSTOM_LOCAL}" "${SSH_HOST}:${ISP_CUSTOM_TMP}"
+    ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${ISP_CUSTOM_TMP} ${ISP_CUSTOM_REMOTE} && sudo chmod 644 ${ISP_CUSTOM_REMOTE} && sudo chown root:root ${ISP_CUSTOM_REMOTE}"
+    echo "       isp-routes-custom.txt deployed (mode 644, root:root)."
 else
-    echo "       ${WHITE_LIST_EXT_LOCAL} not found in repo — skipping exception file deploy (D-05)."
+    echo "       ${ISP_CUSTOM_LOCAL} not found in repo — skipping ISP-custom file deploy (D-05)."
 fi
 
-# ─── Stage 22b: Deploy ru-exclude.txt to RPi (D-07, D-08) ──────────────────
-echo "[21b/${TOTAL_STAGES}] Deploying ru-exclude.txt to ${SSH_HOST} (if present)..."
+# ─── Stage 22b: Deploy vpn-routes-custom.txt to RPi (D-05) ──────────────────
+echo "[21b/${TOTAL_STAGES}] Deploying vpn-routes-custom.txt to ${SSH_HOST} (if present)..."
+if [[ -f "${VPN_FORCE_LOCAL}" ]]; then
+    scp -o BatchMode=yes "${VPN_FORCE_LOCAL}" "${SSH_HOST}:${VPN_FORCE_TMP}"
+    ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${VPN_FORCE_TMP} ${VPN_FORCE_REMOTE} && sudo chmod 644 ${VPN_FORCE_REMOTE} && sudo chown root:root ${VPN_FORCE_REMOTE}"
+    echo "       vpn-routes-custom.txt deployed (mode 644, root:root)."
+else
+    echo "       ${VPN_FORCE_LOCAL} not found in repo — skipping VPN-force file deploy (D-05)."
+fi
+
+# ─── Stage 22c: Deploy ru-exclude.txt to RPi (D-07, D-08) ───────────────────
+echo "[21c/${TOTAL_STAGES}] Deploying ru-exclude.txt to ${SSH_HOST} (if present)..."
 if [[ -f "${EXCLUDE_LIST_LOCAL}" ]]; then
     scp -o BatchMode=yes "${EXCLUDE_LIST_LOCAL}" "${SSH_HOST}:${EXCLUDE_LIST_TMP}"
     ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${EXCLUDE_LIST_TMP} ${EXCLUDE_LIST_REMOTE} && sudo chmod 644 ${EXCLUDE_LIST_REMOTE} && sudo chown root:root ${EXCLUDE_LIST_REMOTE}"
@@ -424,7 +437,7 @@ ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${ASN_LOOKUP_TMP} ${ASN_LOOKUP_REMOT
 echo "       asn-lookup.py deployed (chmod +x, root:root)."
 
 # ─── Stage 24: Bring up VPN tunnel + Activate routing.sh (D-12, D-18, D-04, D-06/P5) ──
-# Single routing.sh run — after all config files (ru-exclude.txt, white-list-extended.txt) are deployed.
+# Single routing.sh run — after all config files (ru-exclude.txt, isp-routes-custom.txt, vpn-routes-custom.txt) are deployed.
 # awg-quick up is not idempotent (Pitfall 5) — guard with ip link show before running.
 if [ "${RUN_ROUTING}" = "true" ]; then
   echo "[24/${TOTAL_STAGES}] Bringing up VPN tunnel and activating routing.sh on ${SSH_HOST}..."
@@ -475,7 +488,8 @@ echo "   PHASE 4: ${DNSMASQ_CONF_REMOTE} (mode 644, root:root)"
 echo "   PHASE 4: ${VPN_STATUS_REMOTE} (chmod +x, root:root)"
 echo "   PHASE 4: ${WATCH_ROUTES_REMOTE} (chmod +x, root:root)"
 echo "   PHASE 4: iptables LOG rules [VPN] + [ISP] active (via routing.sh)"
-echo "   PHASE 5: ${WHITE_LIST_EXT_REMOTE} (mode 644, root:root, optional — deployed only if ${WHITE_LIST_EXT_LOCAL} exists)
+echo "   PHASE 5: ${ISP_CUSTOM_REMOTE} (mode 644, root:root, optional — deployed only if ${ISP_CUSTOM_LOCAL} exists)
+   PHASE 5: ${VPN_FORCE_REMOTE} (mode 644, root:root, optional — deployed only if ${VPN_FORCE_LOCAL} exists)
    PHASE 6: ${NM_DISPATCHER_REMOTE} (chmod 755, root:root — restores routes on eth0 up)"
 echo "   PHASE 7: ${ASN_LOOKUP_REMOTE} (chmod +x, root:root — ASN/org enrichment helper)"
 echo "   PHASE 8: ${EXCLUDE_LIST_REMOTE} (mode 644, root:root, optional — deployed only if ${EXCLUDE_LIST_LOCAL} exists)"
@@ -550,7 +564,7 @@ echo "   ssh pi4 \"sudo /etc/splitgate/vpn-status.sh --via=vpn\""
 echo "   # expect: only rows with VPN in the PATH column (or empty if no VPN traffic)"
 echo "   ssh pi4 \"sudo /etc/splitgate/vpn-status.sh --via=isp\""
 echo "   # expect: only rows with ISP in the PATH column"
-echo "   ssh pi4 \"ls -l /etc/splitgate/white-list-extended.txt 2>/dev/null || echo 'no exception file present'\""
+echo "   ssh pi4 \"ls -l /etc/splitgate/isp-routes-custom.txt /etc/splitgate/vpn-routes-custom.txt 2>/dev/null || echo 'no custom route files present'\""
 echo "   ssh pi4 \"sudo /etc/splitgate/routing.sh && ip route get <YOUR-EXCEPTION-CIDR-IP>\""
 echo "   # expect: route via 192.168.1.1 (KEENETIC_GW) for any IP inside an exception CIDR"
 echo ""

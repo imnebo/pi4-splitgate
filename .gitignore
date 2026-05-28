@@ -5,8 +5,9 @@
 .env.secrets
 /awg0.conf
 
-# Phase 5: user-defined ISP-bypass exceptions — never commit
-src/configs/white-list-extended.txt
+# Phase 5: user-defined custom route overrides — never commit
+src/configs/isp-routes-custom.txt
+src/configs/vpn-routes-custom.txt
 # Phase 8: operator CIDR exclusion list — never commit
 src/configs/ru-exclude.txt
 

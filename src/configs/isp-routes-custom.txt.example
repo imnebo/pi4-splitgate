@@ -1,0 +1,28 @@
+# configs/isp-routes-custom.txt.example
+#
+# PURPOSE: User-defined CIDRs that bypass VPN and exit via ISP (KEENETIC_GW),
+# loaded alongside the auto-downloaded RU list. Use this for foreign services
+# that you want to access unmetered or that break under VPN.
+#
+# PRIORITY: These routes are applied in addition to the auto-downloaded RU list.
+# If a CIDR here also appears in the RU list, a duplicate ISP route is silently
+# dropped (harmless). If a CIDR here conflicts with vpn-routes-custom.txt,
+# vpn-routes-custom.txt wins (applied last).
+#
+# FORMAT: One CIDR per line. Lines starting with # are comments. No inline
+# comments after a CIDR — ip route reads the whole line as the route argument.
+#
+# HOW TO USE:
+#   1. Run: ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn" to identify
+#      IPs exiting via VPN that should go direct
+#   2. Resolve to a CIDR (via whois or ipinfo.io)
+#   3. cp src/configs/isp-routes-custom.txt.example src/configs/isp-routes-custom.txt
+#   4. Add CIDRs (one per line, no inline comments)
+#   5. Run: ./src/deploy.sh — Stage 21 deploys to /etc/splitgate/isp-routes-custom.txt
+#      and routing.sh Stage 5b loads the routes on activation.
+#
+# VALIDATION: Malformed lines silently dropped by ip route add (2>/dev/null || true).
+#
+# EXAMPLE ENTRIES (remove leading # to activate):
+# 23.55.0.0/16
+# 95.181.176.0/22

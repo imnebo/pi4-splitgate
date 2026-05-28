@@ -1,0 +1,29 @@
+# configs/vpn-routes-custom.txt.example
+#
+# PURPOSE: User-defined CIDRs forced through VPN (awg0), overriding the
+# auto-downloaded RU list. Use this when a subnet is in the RU list but
+# you want it to exit via VPN anyway (e.g., RU CDN nodes that serve
+# foreign content, or specific ranges you want geo-shifted).
+#
+# PRIORITY: Highest priority override. Applied in Stage 5c after all ISP
+# routes (Stage 5 + 5b) are set. Any existing ISP route for these CIDRs
+# is deleted before the VPN route is added. If a CIDR appears in both this
+# file and isp-routes-custom.txt, VPN wins.
+#
+# FORMAT: One CIDR per line. Lines starting with # are comments. No inline
+# comments after a CIDR — ip route reads the whole line as the route argument.
+#
+# HOW TO USE:
+#   1. Run: ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp" to identify
+#      IPs exiting via ISP that you want to force through VPN
+#   2. Resolve to a CIDR (via whois or ipinfo.io)
+#   3. cp src/configs/vpn-routes-custom.txt.example src/configs/vpn-routes-custom.txt
+#   4. Add CIDRs (one per line, no inline comments)
+#   5. Run: ./src/deploy.sh — deploys to /etc/splitgate/vpn-routes-custom.txt
+#      and routing.sh Stage 5c applies the VPN-force routes.
+#
+# VALIDATION: Malformed lines silently dropped by ip route add (2>/dev/null || true).
+#
+# EXAMPLE ENTRIES (remove leading # to activate):
+# 77.88.0.0/18
+# 5.255.255.0/24

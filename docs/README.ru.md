@@ -65,19 +65,25 @@ VPN_SERVER_IP=<your-server-ip>  # IP-адрес AmneziaWG-сервера — з�
 CRON_UPDATE_HOUR=5          # Час (0–23) ежедневного обновления списка RU-адресов
 ```
 
-**Опционально — исключения для прямого выхода через ISP** (`src/configs/white-list-extended.txt`): IP-диапазоны, которые должны всегда выходить через провайдера, минуя VPN. Создайте из примера при необходимости:
+**Опционально — кастомные маршруты через провайдера** (`src/configs/isp-routes-custom.txt`): IP-диапазоны, которые всегда выходят через провайдера, минуя VPN, — добавляются поверх автозагружаемого списка RU. Создайте из примера при необходимости:
 
 ```bash
-cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
+cp src/configs/isp-routes-custom.txt.example src/configs/isp-routes-custom.txt
 ```
 
-**Опционально — исключения из списка RU-адресов** (`src/configs/ru-exclude.txt`): IP-диапазоны, которые нужно убрать из загружаемого списка RU, чтобы они уходили через VPN (используется, когда список RU ошибочно включает диапазон, который должен туннелироваться). Создайте из примера при необходимости:
+**Опционально — кастомные маршруты через VPN** (`src/configs/vpn-routes-custom.txt`): IP-диапазоны, которые принудительно направляются через VPN, даже если они есть в автозагружаемом списке RU. Наивысший приоритет — перекрывает все ISP-маршруты. Создайте из примера при необходимости:
+
+```bash
+cp src/configs/vpn-routes-custom.txt.example src/configs/vpn-routes-custom.txt
+```
+
+**Опционально — исключения из списка RU-адресов** (`src/configs/ru-exclude.txt`): IP-диапазоны, которые нужно убрать из загружаемого списка RU на стороне сервера (используется, когда список RU ошибочно включает диапазон, который должен туннелироваться). Создайте из примера при необходимости:
 
 ```bash
 cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
 ```
 
-Оба файла добавлены в `.gitignore`. Полный воркфлоу: [REFERENCE.md](REFERENCE.md).
+Все три файла добавлены в `.gitignore`. Полный воркфлоу: [REFERENCE.md](REFERENCE.md).
 
 ### 3. Настройка роутера (Keenetic)
 
