@@ -65,6 +65,20 @@ VPN_SERVER_IP=YOUR_VPN_SERVER_IP  # IP-адрес AmneziaWG-сервера — �
 CRON_UPDATE_HOUR=5          # Час (0–23) ежедневного обновления списка RU-адресов
 ```
 
+**Опционально — исключения для прямого выхода через ISP** (`src/configs/white-list-extended.txt`): IP-диапазоны, которые должны всегда выходить через провайдера, минуя VPN. Создайте из примера при необходимости:
+
+```bash
+cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
+```
+
+**Опционально — исключения из списка RU-адресов** (`src/configs/ru-exclude.txt`): IP-диапазоны, которые нужно убрать из загружаемого списка RU, чтобы они уходили через VPN (используется, когда список RU ошибочно включает диапазон, который должен туннелироваться). Создайте из примера при необходимости:
+
+```bash
+cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
+```
+
+Оба файла добавлены в `.gitignore`. Полный воркфлоу: [REFERENCE.md](REFERENCE.md).
+
 ### 3. Настройка роутера (Keenetic)
 
 **Шлюз** — установите RPi как шлюз по умолчанию для LAN:

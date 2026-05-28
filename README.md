@@ -65,6 +65,20 @@ VPN_SERVER_IP=YOUR_VPN_SERVER_IP  # AmneziaWG server IP — must match template 
 CRON_UPDATE_HOUR=5          # Hour (0–23) for daily RU list refresh
 ```
 
+**Optional — ISP bypass exceptions** (`src/configs/white-list-extended.txt`): CIDRs that should bypass VPN and exit via ISP regardless of the RU list. Create from example when needed:
+
+```bash
+cp src/configs/white-list-extended.txt.example src/configs/white-list-extended.txt
+```
+
+**Optional — RU list exclusions** (`src/configs/ru-exclude.txt`): CIDRs to strip from the downloaded RU list so they route via VPN (use when the RU list incorrectly includes a range you want tunneled). Create from example when needed:
+
+```bash
+cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
+```
+
+Both files are gitignored. Full workflow: [docs/REFERENCE.md](docs/REFERENCE.md).
+
 ### 3. Router setup (Keenetic)
 
 **Gateway** — set RPi as the LAN default gateway:
