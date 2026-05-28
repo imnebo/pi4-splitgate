@@ -44,11 +44,25 @@ Host pi4
 
 Verify: `ssh pi4 "echo ok"` — must succeed without a password prompt.
 
-### 2. VPN keys
+### 2. Configure
+
+**VPN keys** (`.env.secrets`):
 
 ```bash
 cp .env.secrets.example .env.secrets
 # Fill in AWG_PRIVATE_KEY, AWG_PUBLIC_KEY, AWG_PRESHARED_KEY (44-char base64 each)
+```
+
+**AmneziaWG config template** (`src/configs/amnezia.key.template.txt`): holds server-specific obfuscation parameters (Jc, Jmin, Jmax, S1, S2, H1–H4) and the endpoint. Copy the `[Interface]` and `[Peer]` blocks from your AmneziaWG server's client config, then replace the key values with `{{PrivateKey}}`, `{{PublicKey}}`, `{{PresharedKey}}` placeholders — `deploy.sh` substitutes them at deploy time.
+
+**Network config** (`.env`): committed to the repo, safe to edit. Update if your network differs from defaults:
+
+```
+SSH_HOST="pi4"              # SSH alias for the RPi (from ~/.ssh/config)
+RPI_LAN_IP=192.168.1.254    # RPi LAN IP
+KEENETIC_GW=192.168.1.1     # ISP gateway (your router)
+VPN_SERVER_IP=YOUR_VPN_SERVER_IP  # AmneziaWG server IP — must match template Endpoint
+CRON_UPDATE_HOUR=5          # Hour (0–23) for daily RU list refresh
 ```
 
 ### 3. Router setup (Keenetic)

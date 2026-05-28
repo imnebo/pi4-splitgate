@@ -44,11 +44,25 @@ Host pi4
 
 Проверка: `ssh pi4 "echo ok"` — должна выполниться без запроса пароля.
 
-### 2. VPN-ключи
+### 2. Конфигурация
+
+**VPN-ключи** (`.env.secrets`):
 
 ```bash
 cp .env.secrets.example .env.secrets
 # Заполните AWG_PRIVATE_KEY, AWG_PUBLIC_KEY, AWG_PRESHARED_KEY (44-символьный base64 каждый)
+```
+
+**Шаблон конфигурации AmneziaWG** (`src/configs/amnezia.key.template.txt`): содержит специфичные для сервера параметры обфускации (Jc, Jmin, Jmax, S1, S2, H1–H4) и адрес endpoint. Скопируйте блоки `[Interface]` и `[Peer]` из клиентской конфигурации вашего AmneziaWG-сервера, затем замените значения ключей на плейсхолдеры `{{PrivateKey}}`, `{{PublicKey}}`, `{{PresharedKey}}` — `deploy.sh` подставит их во время деплоя.
+
+**Конфигурация сети** (`.env`): зафиксирована в репозитории, безопасно редактировать. Обновите, если ваша сеть отличается от настроек по умолчанию:
+
+```
+SSH_HOST="pi4"              # SSH-псевдоним RPi (из ~/.ssh/config)
+RPI_LAN_IP=192.168.1.254    # IP-адрес RPi в LAN
+KEENETIC_GW=192.168.1.1     # Шлюз провайдера (ваш роутер)
+VPN_SERVER_IP=YOUR_VPN_SERVER_IP  # IP-адрес AmneziaWG-сервера — должен совпадать с Endpoint в шаблоне
+CRON_UPDATE_HOUR=5          # Час (0–23) ежедневного обновления списка RU-адресов
 ```
 
 ### 3. Настройка роутера (Keenetic)

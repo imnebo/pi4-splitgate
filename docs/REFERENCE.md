@@ -6,10 +6,11 @@
 
 ## Environment Variables
 
-Stored in `/etc/splitgate/vpn-gateway.env` on the RPi; source is `.env` in this repo.
+Source is `.env` in this repo. All except `SSH_HOST` are deployed to `/etc/splitgate/vpn-gateway.env` on the RPi.
 
 | Variable | Value | Description |
 |----------|-------|-------------|
+| `SSH_HOST` | `pi4` | SSH alias for the RPi — used by `deploy.sh` on macOS only; not deployed to RPi |
 | `RPI_LAN_IP` | `192.168.1.254` | RPi LAN IP address |
 | `KEENETIC_GW` | `192.168.1.1` | ISP gateway (your router) |
 | `VPN_SERVER_IP` | `YOUR_VPN_SERVER_IP` | AmneziaWG server endpoint IP |
@@ -22,7 +23,7 @@ Stored in `/etc/splitgate/vpn-gateway.env` on the RPi; source is `.env` in this 
 
 ## Deploy Stage Groups
 
-`deploy.sh` runs 27 stages from your Mac via SSH. Full deploy: `bash src/deploy.sh`.
+`deploy.sh` runs 26 stages from your Mac via SSH. Full deploy: `bash src/deploy.sh`.
 
 | Group | Stages | What happens |
 |-------|--------|--------------|
@@ -30,14 +31,14 @@ Stored in `/etc/splitgate/vpn-gateway.env` on the RPi; source is `.env` in this 
 | AmneziaWG install | 4 | Stream `src/scripts/install-awg.sh` over SSH to the RPi; DKMS build may take 10–30 min |
 | Splitgate namespace | 5 | Create `/etc/splitgate/` and `/etc/splitgate/logs/` on the RPi |
 | Config deploy | 6–10 | Render and deploy `awg0.conf` (mode 600), deploy `vpn-gateway.env` (mode 644), post-deploy file checks |
-| Routing deploy | 11–12 | SCP `routing.sh` to `/etc/splitgate/routing.sh`, activate split-tunnel routing (unless `--no-run`) |
-| Autostart | 13–14 | Deploy `vpn-routing.service`, reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot |
-| Cron + rollback | 15–17 | Deploy `update-vpn-routes`, write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh` |
-| Logging | 18–21 | Install dnsmasq (before config), deploy `dnsmasq.conf`, deploy `vpn-status.sh`, deploy `watch-routes.py` |
-| Exceptions + NM | 22–23 | Conditionally deploy `white-list-extended.txt` and `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
-| ASN helper | 24 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` |
-| Final activation | 25 | Re-run `routing.sh` to apply all iptables LOG rules and exception routes |
-| Splitgate artifacts | 26–27 | Deploy `splitgate` dispatcher to `/usr/local/bin/splitgate` (chmod +x); deploy `logrotate-vpn-gateway` |
+| Routing deploy | 11–12 | SCP `routing.sh` to `/etc/splitgate/routing.sh`, deploy `vpn-routing.service` |
+| Autostart | 13–14 | Reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot, deploy `update-vpn-routes` |
+| Cron + rollback | 15–17 | Write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh`, ensure dnsmasq installed |
+| Logging | 18–20 | Deploy `dnsmasq.conf`, enable and start dnsmasq, deploy `vpn-status.sh`, deploy `watch-routes.py` |
+| Exceptions + NM | 21–22 | Conditionally deploy `white-list-extended.txt` and `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
+| ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` |
+| Final activation | 24 | Bring up `awg0` tunnel (if not up), run `routing.sh` to apply all routes, iptables LOG rules, and exception routes |
+| Splitgate artifacts | 25–26 | Deploy `splitgate` dispatcher to `/usr/local/bin/splitgate` (chmod +x); deploy `logrotate-vpn-gateway` |
 
 ---
 
@@ -366,7 +367,7 @@ Files that stay at system locations (required by their consuming daemon):
 
 **Synopsis:** `bash src/deploy.sh [--no-run]`
 
-Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 27 stages.
+Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 26 stages.
 Sources `.env` and `.env.secrets`; validates keys before any remote operation.
 
 | Flag | Description |
