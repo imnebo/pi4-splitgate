@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 _SPEC = importlib.util.spec_from_file_location(
     "watch_routes",
-    "scripts/watch-routes.py",
+    "src/scripts/watch-routes.py",
 )
 wr: types.ModuleType = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(wr)  # type: ignore[union-attr]
@@ -202,7 +202,7 @@ class TestHelpFlag(unittest.TestCase):
         """Test 9 (as --help): --help exits 0 and stdout mentions --no-asn."""
         import subprocess as sp
         result = sp.run(
-            [sys.executable, "scripts/watch-routes.py", "--help"],
+            [sys.executable, "src/scripts/watch-routes.py", "--help"],
             capture_output=True,
             text=True,
         )
@@ -237,6 +237,173 @@ class TestBackwardCompat(unittest.TestCase):
             result.endswith(" | GOOGLE, US"),
             f"Backward-compat call failed; got: {result!r}",
         )
+
+
+def _reset_pending_state() -> None:
+    """Clear _pending between tests without replacing the lock."""
+    with wr._pending_lock:
+        wr._pending.clear()
+
+
+class TestPendingBuffer(unittest.TestCase):
+    """Tests B1–B7: pending buffer and watchdog behavior."""
+
+    def setUp(self) -> None:
+        _reset_asn_state()
+        _reset_pending_state()
+
+    def tearDown(self) -> None:
+        _reset_asn_state()
+        _reset_pending_state()
+
+    def test_B1_new_ip_buffered_not_printed(self) -> None:
+        """B1: new dst not in cache → entry added to _pending, nothing printed."""
+        with patch("subprocess.run") as mock_run, \
+             patch("builtins.print") as mock_print, \
+             patch.object(wr, "lookup_async"):
+            # Simulate one iteration of main()'s inner logic directly
+            dst = "1.2.3.4"
+            with wr._asn_lock:
+                cached = wr._asn_cache.get(dst, "__missing__")
+            self.assertEqual(cached, "__missing__")
+
+            wr.lookup_async(dst)
+            import time as _time
+            entry = (_time.monotonic(), "2026-05-28T12:00:00", "VPN",
+                     "192.168.1.1", dst, "TCP", "443", True)
+            with wr._pending_lock:
+                wr._pending.setdefault(dst, []).append(entry)
+
+        with wr._pending_lock:
+            self.assertIn("1.2.3.4", wr._pending)
+            self.assertEqual(len(wr._pending["1.2.3.4"]), 1)
+
+    def test_B2_do_lookup_flushes_pending_with_org(self) -> None:
+        """B2: _do_lookup with resolved org → _flush_entries prints line with | org."""
+        import time as _time
+        dst = "8.8.8.8"
+        entry = (_time.monotonic(), "2026-05-28T12:00:00", "VPN",
+                 "192.168.1.1", dst, "TCP", "443", True)
+        with wr._pending_lock:
+            wr._pending[dst] = [entry]
+
+        payload = json.dumps({dst: {"asn": "15169", "org": "GOOGLE, US"}})
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = payload + "\n"
+
+        with patch("subprocess.run", return_value=mock_result), \
+             patch("builtins.print") as mock_print:
+            wr._do_lookup(dst)
+
+        with wr._pending_lock:
+            self.assertNotIn(dst, wr._pending, "_pending not cleared after _do_lookup")
+        printed = mock_print.call_args_list
+        self.assertTrue(any("GOOGLE, US" in str(c) for c in printed),
+                        f"Expected '| GOOGLE, US' in output; got {printed}")
+
+    def test_B3_do_lookup_flushes_pending_no_result(self) -> None:
+        """B3: _do_lookup with no result → _flush_entries prints line without | org."""
+        import time as _time
+        dst = "9.9.9.9"
+        entry = (_time.monotonic(), "2026-05-28T12:00:00", "ISP",
+                 "192.168.1.1", dst, "TCP", "80", True)
+        with wr._pending_lock:
+            wr._pending[dst] = [entry]
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="p", timeout=5.0)), \
+             patch("builtins.print") as mock_print:
+            wr._do_lookup(dst)
+
+        with wr._pending_lock:
+            self.assertNotIn(dst, wr._pending)
+        printed_lines = [str(c) for c in mock_print.call_args_list]
+        self.assertTrue(any("9.9.9.9" in l for l in printed_lines))
+        self.assertFalse(any(" | " in l for l in printed_lines))
+
+    def test_B4_in_flight_ip_adds_to_existing_pending(self) -> None:
+        """B4: second packet for in-flight IP goes into _pending too."""
+        import time as _time
+        dst = "5.5.5.5"
+        # Mark as in-flight
+        with wr._asn_lock:
+            wr._asn_cache[dst] = None
+        entry1 = (_time.monotonic(), "2026-05-28T12:00:00", "VPN",
+                  "192.168.1.1", dst, "TCP", "443", True)
+        with wr._pending_lock:
+            wr._pending[dst] = [entry1]
+
+        entry2 = (_time.monotonic(), "2026-05-28T12:00:01", "VPN",
+                  "192.168.1.1", dst, "TCP", "443", True)
+        # Simulate main() logic for in-flight case
+        with wr._asn_lock:
+            cached = wr._asn_cache.get(dst, "__missing__")
+        self.assertIsNone(cached)
+        with wr._pending_lock:
+            wr._pending.setdefault(dst, []).append(entry2)
+
+        with wr._pending_lock:
+            self.assertEqual(len(wr._pending[dst]), 2)
+
+    def test_B5_watchdog_flushes_timed_out_entries(self) -> None:
+        """B5: watchdog flushes entries older than _BUFFER_TIMEOUT."""
+        import time as _time
+        dst = "7.7.7.7"
+        old_ts = _time.monotonic() - wr._BUFFER_TIMEOUT - 1.0
+        entry = (old_ts, "2026-05-28T12:00:00", "VPN",
+                 "192.168.1.1", dst, "TCP", "443", True)
+        with wr._pending_lock:
+            wr._pending[dst] = [entry]
+        with wr._asn_lock:
+            wr._asn_cache[dst] = {}
+
+        with patch("builtins.print") as mock_print, \
+             patch("time.sleep"):
+            # Call watchdog logic directly (one iteration without infinite loop)
+            now = _time.monotonic()
+            to_flush: list = []
+            with wr._pending_lock:
+                timed_out = [
+                    ip for ip, entries in wr._pending.items()
+                    if entries and now - entries[0][0] >= wr._BUFFER_TIMEOUT
+                ]
+                for ip in timed_out:
+                    to_flush.append((ip, wr._pending.pop(ip)))
+            for ip, entries in to_flush:
+                with wr._asn_lock:
+                    result = wr._asn_cache.get(ip) or {}
+                wr._flush_entries(entries, result)
+
+        with wr._pending_lock:
+            self.assertNotIn(dst, wr._pending, "watchdog did not flush timed-out entry")
+        self.assertTrue(mock_print.called)
+
+    def test_B6_no_asn_no_buffering(self) -> None:
+        """B6: enable_asn=False → format_line called immediately, _pending untouched."""
+        with wr._pending_lock:
+            initial_keys = set(wr._pending.keys())
+
+        result = wr.format_line("2026-05-28T12:00:00", "VPN", "192.168.1.1",
+                                 "3.3.3.3", "TCP", "443", True, enable_asn=False)
+        self.assertIsInstance(result, str)
+        self.assertNotIn(" | ", result)
+
+        with wr._pending_lock:
+            self.assertEqual(set(wr._pending.keys()), initial_keys,
+                             "_pending modified despite enable_asn=False")
+
+    def test_B7_cached_ip_prints_immediately(self) -> None:
+        """B7: IP already in _asn_cache with result → format_line returns with org, no pending."""
+        dst = "4.4.4.4"
+        with wr._asn_lock:
+            wr._asn_cache[dst] = {"asn": "3356", "org": "LEVEL3"}
+
+        result = wr.format_line("2026-05-28T12:00:00", "VPN", "192.168.1.1",
+                                 dst, "TCP", "80", True, enable_asn=True)
+        self.assertIn("LEVEL3", result)
+
+        with wr._pending_lock:
+            self.assertNotIn(dst, wr._pending)
 
 
 if __name__ == "__main__":

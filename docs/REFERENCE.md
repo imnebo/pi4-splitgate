@@ -134,8 +134,9 @@ All flags compose: `--last`, `--filter`, `--device`, `--via`, `--summary` can be
 
 `/etc/splitgate/watch-routes.py` is a real-time iptables log enricher. It spawns `journalctl -f -k` and
 parses `[VPN]`/`[ISP]` lines as they appear, resolving destination IPs via cached rDNS lookups.
-Each line is enriched with ` | {org}` via a background thread — the org suffix appears on subsequent
-re-prints of the same IP once the cache is warm. Press Ctrl+C to stop.
+Each line is enriched with ` | {org}` via a background ASN lookup — new IPs are held in a buffer until
+the lookup completes (typically 1–3 s) so every printed line carries the org suffix. If the lookup
+stalls, the line flushes after 6 seconds. Repeated IPs print immediately from cache. Press Ctrl+C to stop.
 
 ```bash
 ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py"
@@ -554,8 +555,9 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 Real-time iptables log enricher. Spawns `journalctl -f -k --no-pager -o short-iso` and
 parses `[VPN]`/`[ISP]` lines as they arrive. Resolves destination IPs via cached rDNS lookups
-(in-memory cache, 2-second timeout). Lines are enriched with ` | {org}` via a background thread
-without blocking the stream — org suffix appears once the cache is warm for that IP.
+(in-memory cache, 2-second timeout). Lines for new destination IPs are buffered until the ASN lookup
+completes (typically 1–3 s), so every printed line carries ` | {org}`. Repeated IPs print immediately
+from cache. Stalled lookups flush after 6 seconds.
 
 Requires Python 3 (stdlib only — no pip dependencies).
 
@@ -711,6 +713,7 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"
 | 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from the downloaded RU list so they route via VPN | [.planning/phases/08-ru-ip-list-exclusion-filter/](../.planning/phases/08-ru-ip-list-exclusion-filter/) |
 | 10 | Splitgate Ergonomics | Consolidated RPi files under `/etc/splitgate/`, added `splitgate` dispatcher CLI, log rotation | [.planning/phases/10-splitgate-ergonomics/](../.planning/phases/10-splitgate-ergonomics/) |
 | 11 | README Documentation Overhaul | Trim README to 3 quick-start sections; all technical detail in docs/REFERENCE.md | [.planning/phases/11-readme-documentation/](../.planning/phases/11-readme-documentation/) |
+| 12 | Buffered ASN Output | Buffer watch-routes.py lines until ASN lookup completes; flush after 6 s on stall | [.planning/phases/12-buffered-asn-output/](../.planning/phases/12-buffered-asn-output/) |
 
 ### Quick Tasks
 

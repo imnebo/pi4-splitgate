@@ -1,7 +1,7 @@
 # Roadmap: RPi VPN Gateway
 
 **Created:** 2026-05-18
-**Phases:** 11
+**Phases:** 12
 **Requirements mapped:** 20/20 ✓
 
 ---
@@ -21,6 +21,7 @@
 | 9 | Operational Logging | Centralized logs for diagnosing system failures; 14-day rotation | ○ Pending |
 | 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/, splitgate dispatcher CLI, log rotation | ✓ Complete |
 | 11 | README Documentation Overhaul | Trim README to 3 quick-start sections; all technical detail in docs/REFERENCE.md | ✓ Complete |
+| 12 | Buffered ASN Output | Hold watch-routes.py lines until ASN lookup completes; flush after BUFFER_TIMEOUT | ✓ Complete |
 
 ---
 
@@ -305,5 +306,20 @@ Plans:
 - [x] 11-01-PLAN.md — Rewrite README.md (3 sections), create docs/REFERENCE.md, sync docs/README.ru.md ✓ 2026-05-28
 
 ---
+
+### Phase 12: Buffered ASN Output
+
+**Goal:** Buffer `watch-routes.py` log lines until their ASN/org lookup completes so every printed line carries full enrichment data; fall back to immediate print after `BUFFER_TIMEOUT` (6.0 s) if lookup stalls
+**Requirements**: None mapped (UX enhancement — extends Phase 7 async enrichment)
+**Depends on:** Phase 7 (asn-lookup.py, _asn_cache), Phase 10 (/etc/splitgate/ namespace)
+**Plans:** 1 plan
+
+Plans:
+
+- [x] 12-01-PLAN.md — src/scripts/watch-routes.py: pending buffer + watchdog thread; src/tests/test_watch_routes_asn.py updated ✓ 2026-05-28
+
+**Phase 12 complete ✓**
+
+---
 *Created: 2026-05-18*
-*Updated: 2026-05-28 — Phase 11 added: README documentation overhaul; REFERENCE.md created*
+*Updated: 2026-05-28 — Phase 12 added: buffered ASN output in watch-routes.py*

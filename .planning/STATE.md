@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 9 complete — operational logging wired (1/1 plans)
-stopped_at: Phase 9 Plan 01 complete — timestamped file-append in routing.sh, update-vpn-routes, vpn-rollback.sh; logger calls removed; vpn-rollback.sh teardown adds logrotate cleanup
+status: Phase 12 complete — buffered ASN output in watch-routes.py (1/1 plans)
+stopped_at: Phase 12 Plan 01 complete — _pending buffer + watchdog; _do_lookup flushes; 17 tests passing; stale scripts/ path fixed in test file
 last_updated: "2026-05-28T00:00:00Z"
 progress:
-  total_phases: 11
-  completed_phases: 11
-  total_plans: 27
-  completed_plans: 27
+  total_phases: 12
+  completed_phases: 12
+  total_plans: 28
+  completed_plans: 28
   percent: 100
 ---
 
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 11: README Documentation Overhaul — COMPLETE (1/1 plans)**
+**Phase 12: Buffered ASN Output — COMPLETE (1/1 plans)**
 
 10-00 complete: all source dirs moved to src/.
 10-01 complete: all internal /etc/ paths in 7 scripts/units migrated to /etc/splitgate/; vpn-rollback.sh D-18 teardown added.
@@ -45,6 +45,8 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 | 8 — RU IP List Exclusion Filter | ✓ Complete | 3/3 done | 100% |
 | 9 — Operational Logging | ✓ Complete | 1/1 done | 100% |
 | 10 — Splitgate Ergonomics & Organization | ✓ Complete | 4/4 done | 100% |
+| 11 — README Documentation Overhaul | ✓ Complete | 1/1 done | 100% |
+| 12 — Buffered ASN Output | ✓ Complete | 1/1 done | 100% |
 
 ## Requirements
 
@@ -102,9 +104,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Last Session
 
-**Stopped at:** Phase 9 Plan 01 complete — operational logging wired across all daemon scripts
+**Stopped at:** Phase 12 Plan 01 complete — buffered ASN output; 17 tests passing
 **Timestamp:** 2026-05-28T00:00:00Z
-**Resume:** All 11 phases complete. Next: manual deploy to RPi and live verification.
+**Resume:** All 12 phases complete. Next: manual deploy to RPi and live verification.
 
 ---
 *Initialized: 2026-05-18*

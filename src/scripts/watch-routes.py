@@ -28,6 +28,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 
 # ─── DNS cache ────────────────────────────────────────────────────────────────
 # Maps IP string → hostname string.
@@ -43,6 +44,9 @@ socket.setdefaulttimeout(2.0)
 #   {"asn": "...", "org": "..."}  : resolved successfully
 _asn_cache: dict = {}
 _asn_lock = threading.Lock()
+_BUFFER_TIMEOUT = 6.0
+_pending: dict[str, list] = {}  # dst_ip → [(enqueue_ts, ts, tag, src, dst, proto, dpt, no_dns), ...]
+_pending_lock = threading.Lock()
 ASN_LOOKUP_PATH = "/etc/splitgate/asn-lookup.py"
 ASN_SUBPROCESS_TIMEOUT = 5.0
 
@@ -64,6 +68,19 @@ def resolve(ip: str, no_dns: bool) -> str:
     return _dns_cache[ip]
 
 
+def _flush_entries(entries: list, asn_result: dict) -> None:
+    """Print buffered lines, enriched with asn_result if it contains an org."""
+    org = asn_result.get("org") if isinstance(asn_result, dict) else None
+    for (_, ts, tag, src, dst, proto, dpt, no_dns) in entries:
+        hostname = resolve(dst, no_dns)
+        dst_part = f"{dst} ({hostname[:40]})" if hostname != dst else dst
+        port_part = f"{proto}:{dpt}" if dpt else proto
+        line = f"{ts} [{tag}] {src} → {dst_part} {port_part}"
+        if org:
+            line += f" | {org}"
+        print(line, flush=True)
+
+
 def _do_lookup(ip: str) -> None:
     """Background worker: invoke asn-lookup.py subprocess and populate _asn_cache."""
     try:
@@ -83,6 +100,10 @@ def _do_lookup(ip: str) -> None:
         result = {}
     with _asn_lock:
         _asn_cache[ip] = result
+    with _pending_lock:
+        entries = _pending.pop(ip, [])
+    if entries:
+        _flush_entries(entries, result)
 
 
 def lookup_async(ip: str) -> None:
@@ -97,6 +118,25 @@ def lookup_async(ip: str) -> None:
         _asn_cache[ip] = None  # sentinel: in flight
     t = threading.Thread(target=_do_lookup, args=(ip,), daemon=True)
     t.start()
+
+
+def _pending_watchdog() -> None:
+    """Daemon thread: flush buffered lines that have waited longer than _BUFFER_TIMEOUT."""
+    while True:
+        time.sleep(1.0)
+        now = time.monotonic()
+        to_flush: list = []
+        with _pending_lock:
+            timed_out = [
+                ip for ip, entries in _pending.items()
+                if entries and now - entries[0][0] >= _BUFFER_TIMEOUT
+            ]
+            for ip in timed_out:
+                to_flush.append((ip, _pending.pop(ip)))
+        for ip, entries in to_flush:
+            with _asn_lock:
+                result = _asn_cache.get(ip) or {}
+            _flush_entries(entries, result)
 
 
 # ─── Log-line regex ───────────────────────────────────────────────────────────
@@ -184,6 +224,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
+    threading.Thread(target=_pending_watchdog, daemon=True).start()
+
     cmd = ["journalctl", "-f", "-k", "--no-pager", "-o", "short-iso"]
 
     try:
@@ -223,7 +265,20 @@ def main() -> None:
             if args.src and src != args.src:
                 continue
 
-            output = format_line(ts, tag, src, dst, proto, dpt, args.no_dns, enable_asn=not args.no_asn)
+            enable_asn = not args.no_asn
+
+            if enable_asn:
+                with _asn_lock:
+                    cached = _asn_cache.get(dst, "__missing__")
+
+                if cached in ("__missing__", None):
+                    lookup_async(dst)
+                    entry = (time.monotonic(), ts, tag, src, dst, proto, dpt, args.no_dns)
+                    with _pending_lock:
+                        _pending.setdefault(dst, []).append(entry)
+                    continue
+
+            output = format_line(ts, tag, src, dst, proto, dpt, args.no_dns, enable_asn=enable_asn)
             print(output, flush=True)
     except KeyboardInterrupt:
         pass
