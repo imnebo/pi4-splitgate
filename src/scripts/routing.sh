@@ -151,6 +151,12 @@ log "Stage 3: Flushing existing VPN routes (D-06)..."
 ip route flush dev "${VPN_IFACE}" 2>/dev/null || true
 ip route del "${VPN_SERVER_IP}/32" 2>/dev/null || true
 ip route del default 2>/dev/null || true
+# Flush all ISP routes via KEENETIC_GW — required so stale routes from a previous
+# white-list.txt (e.g. CIDRs later moved to ru-exclude.txt) don't persist after rebuild.
+while IFS= read -r cidr; do
+    [[ -z "$cidr" ]] && continue
+    ip route del "$cidr" via "${KEENETIC_GW}" 2>/dev/null || true
+done < <(ip route show via "${KEENETIC_GW}" 2>/dev/null | awk '{print $1}')
 log "Routes flushed, rebuilding..."
 
 # ─── Stage 4: Add VPN server host route (ROUT-03, D-01) ─────────────────────
