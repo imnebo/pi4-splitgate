@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 12 complete — buffered ASN output in watch-routes.py (1/1 plans)
-stopped_at: Phase 12 Plan 01 complete — _pending buffer + watchdog; _do_lookup flushes; 17 tests passing; stale scripts/ path fixed in test file
-last_updated: "2026-05-28T00:00:00Z"
+status: Phase 12 complete — Phase 13 planned (4 plans, 3 waves)
+stopped_at: Phase 13 plans 01-04 created and verified; ready to execute
+last_updated: "2026-05-29T00:00:00Z"
 progress:
-  total_phases: 12
+  total_phases: 13
   completed_phases: 12
-  total_plans: 28
+  total_plans: 32
   completed_plans: 28
-  percent: 100
+  percent: 87
 ---
 
 # State: RPi VPN Gateway
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 12: Buffered ASN Output — COMPLETE (1/1 plans)**
+**Phase 13: Log Monitoring, Routing Refinement & Daemon — PLANNED (0/4 plans)**
 
 10-00 complete: all source dirs moved to src/.
 10-01 complete: all internal /etc/ paths in 7 scripts/units migrated to /etc/splitgate/; vpn-rollback.sh D-18 teardown added.
@@ -47,6 +47,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 | 10 — Splitgate Ergonomics & Organization | ✓ Complete | 4/4 done | 100% |
 | 11 — README Documentation Overhaul | ✓ Complete | 1/1 done | 100% |
 | 12 — Buffered ASN Output | ✓ Complete | 1/1 done | 100% |
+| 13 — Log Monitoring, Routing Refinement & Daemon | ◆ Planned | 0/4 | 0% |
 
 ## Requirements
 
@@ -104,9 +105,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Last Session
 
-**Stopped at:** Phase 12 Plan 01 complete — buffered ASN output; 17 tests passing
-**Timestamp:** 2026-05-28T00:00:00Z
-**Resume:** All 12 phases complete. Next: manual deploy to RPi and live verification.
+**Stopped at:** Phase 13 planning complete — 4 plans (13-01 through 13-04) in 3 waves; plan-checker PASS (5 warnings, 0 blockers); 17-vs-18 CIDR count fixed in 13-01-PLAN.md
+**Timestamp:** 2026-05-29T00:00:00Z
+**Resume:** Execute Phase 13 — `/gsd:execute-phase 13`
 
 ---
 *Initialized: 2026-05-18*
