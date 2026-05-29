@@ -9,6 +9,7 @@ human-readable output.
 
 Usage:
     python3 scripts/watch-routes.py [--src IP] [--no-dns] [--no-asn] [--tag {VPN,ISP,both}]
+    python3 scripts/watch-routes.py --daemon [...]
 
 Requirements: stdlib only — no pip dependencies.
 
@@ -19,10 +20,16 @@ is printed without the '| org' suffix, and the suffix appears on the next
 matching line for the same IP once the result is cached.
 
 Use --no-asn to disable all background ASN lookups (pure no-network mode).
+
+Daemon mode (--daemon): writes to /etc/splitgate/logs/watch-YYYY-MM-DD.log instead of
+stdout. Each line includes a conntrack status (✓/✗) after a 3-second delay.
+Connections with the same (src, dst, dport) are not re-logged within 30 seconds.
 """
 
 import argparse
+import datetime
 import json
+import os
 import re
 import socket
 import subprocess
@@ -45,10 +52,22 @@ socket.setdefaulttimeout(2.0)
 _asn_cache: dict = {}
 _asn_lock = threading.Lock()
 _BUFFER_TIMEOUT = 6.0
-_pending: dict[str, list] = {}  # dst_ip → [(enqueue_ts, ts, tag, src, dst, proto, dpt, no_dns), ...]
+_pending: dict[str, list] = {}  # dst_ip → [(enqueue_ts, ts, tag, src, dst, proto, dpt, no_dns[, status]), ...]
 _pending_lock = threading.Lock()
 ASN_LOOKUP_PATH = "/etc/splitgate/asn-lookup.py"
 ASN_SUBPROCESS_TIMEOUT = 5.0
+
+# ─── Daemon mode constants (D-03, D-05, D-06) ────────────────────────────────
+STATUS_DELAY = 3          # seconds to wait before conntrack check
+DEDUP_TTL = 30            # seconds before same (src, dst, dport) logged again
+LOG_DIR = "/etc/splitgate/logs"   # base directory for dated log files
+
+# ─── Daemon mode state ────────────────────────────────────────────────────────
+_DAEMON_MODE: bool = False   # set to True in main() when --daemon flag is active
+_dedup: dict = {}            # maps (src, dst, dport) → monotonic timestamp of last log
+_log_file = None             # current open file handle for daemon log writes
+_log_date = None             # date of _log_file (used to detect midnight rotation)
+_daemon_write_lock = threading.Lock()   # protects _log_file access
 
 
 def resolve(ip: str, no_dns: bool) -> str:
@@ -68,17 +87,86 @@ def resolve(ip: str, no_dns: bool) -> str:
     return _dns_cache[ip]
 
 
+def _check_conntrack(src: str, dst: str, dpt: str) -> str:
+    """Return '✓' if an ESTABLISHED or TIME_WAIT conntrack entry exists for this tuple.
+
+    Reads /proc/net/nf_conntrack line-by-line without subprocesses.
+    Returns '✗' if the file exists but no matching entry is found.
+    Returns '✗' on OSError (file not found, permission denied, etc.).
+
+    dpt argument is a string (e.g. '443') — used as-is in the search.
+    """
+    try:
+        with open("/proc/net/nf_conntrack", "r") as f:
+            for line in f:
+                if (
+                    f"src={src}" in line
+                    and f"dst={dst}" in line
+                    and f"dport={dpt}" in line
+                    and ("ESTABLISHED" in line or "TIME_WAIT" in line)
+                ):
+                    return "✓"
+    except OSError:
+        return "✗"
+    return "✗"
+
+
+def _open_log_file():
+    """Open or rotate the dated log file. Call only while holding _daemon_write_lock."""
+    global _log_file, _log_date
+    today = datetime.date.today()
+    if _log_date == today and _log_file is not None:
+        return _log_file
+    # Rotate: close old handle if open
+    old = _log_file
+    _log_file = None
+    _log_date = None
+    if old is not None:
+        try:
+            old.close()
+        except OSError:
+            pass
+    os.makedirs(LOG_DIR, exist_ok=True)
+    path = f"{LOG_DIR}/watch-{today.isoformat()}.log"
+    _log_file = open(path, "a", encoding="utf-8")
+    _log_date = today
+    return _log_file
+
+
+def _write_daemon_line(line: str) -> None:
+    """Thread-safe write of one line to the current dated log file."""
+    with _daemon_write_lock:
+        f = _open_log_file()
+        f.write(line + "\n")
+        f.flush()
+
+
 def _flush_entries(entries: list, asn_result: dict) -> None:
-    """Print buffered lines, enriched with asn_result if it contains an org."""
+    """Output buffered lines, enriched with asn_result if it contains an org.
+
+    Entry tuple layout:
+      (enqueue_ts, ts, tag, src, dst, proto, dpt, no_dns[, status])
+    The 9th element (status) is optional for backward compatibility with
+    tests that create 8-element tuples. When present and _DAEMON_MODE is True,
+    the status ('✓' or '✗') is inserted between [TAG] and src in the output line.
+    """
     org = asn_result.get("org") if isinstance(asn_result, dict) else None
-    for (_, ts, tag, src, dst, proto, dpt, no_dns) in entries:
+    for entry in entries:
+        _, ts, tag, src, dst, proto, dpt, no_dns = entry[:8]
+        status = entry[8] if len(entry) > 8 else ""
         hostname = resolve(dst, no_dns)
         dst_part = f"{dst} ({hostname[:40]})" if hostname != dst else dst
         port_part = f"{proto}:{dpt}" if dpt else proto
-        line = f"{ts} [{tag}] {src} → {dst_part} {port_part}"
+        if _DAEMON_MODE and status:
+            line = f"{ts} [{tag}] {status} {src} → {dst_part} {port_part}"
+        else:
+            line = f"{ts} [{tag}] {src} → {dst_part} {port_part}"
         if org:
             line += f" | {org}"
-        print(line, flush=True)
+        if _DAEMON_MODE:
+            _write_daemon_line(line)
+        else:
+            print(line, flush=True)
 
 
 def _do_lookup(ip: str) -> None:
@@ -218,11 +306,19 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Disable background ASN/org enrichment.",
     )
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        default=False,
+        help="Write to dated log file instead of stdout. Used by splitgate-watch.service.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
+    global _DAEMON_MODE, _dedup
     args = parse_args()
+    _DAEMON_MODE = args.daemon
 
     threading.Thread(target=_pending_watchdog, daemon=True).start()
 
@@ -267,6 +363,53 @@ def main() -> None:
 
             enable_asn = not args.no_asn
 
+            # ── Daemon mode with ASN: dedup → delay → conntrack → buffer ──────
+            if _DAEMON_MODE and enable_asn:
+                dedup_key = (src, dst, dpt)
+                now = time.monotonic()
+                last = _dedup.get(dedup_key, 0)
+                if now - last < DEDUP_TTL:
+                    continue  # same connection logged recently — skip
+
+                # Evict stale dedup entries (bounded memory — T-13-03-02)
+                _dedup = {k: v for k, v in _dedup.items() if now - v <= DEDUP_TTL * 4}
+
+                # Wait STATUS_DELAY seconds; fits within _BUFFER_TIMEOUT=6s window
+                time.sleep(STATUS_DELAY)
+
+                # Conntrack status check
+                status = _check_conntrack(src, dst, dpt)
+
+                # Update dedup timestamp
+                _dedup[dedup_key] = time.monotonic()
+
+                # Buffer for ASN lookup (extended 9-element tuple with status)
+                with _asn_lock:
+                    cached = _asn_cache.get(dst, "__missing__")
+
+                if cached in ("__missing__", None):
+                    lookup_async(dst)
+                    entry = (time.monotonic(), ts, tag, src, dst, proto, dpt, args.no_dns, status)
+                    with _pending_lock:
+                        _pending.setdefault(dst, []).append(entry)
+                    continue
+
+                # ASN already cached — build and write daemon line directly
+                hostname = resolve(dst, args.no_dns)
+                dst_part = f"{dst} ({hostname[:40]})" if hostname != dst else dst
+                port_part = f"{proto}:{dpt}" if dpt else proto
+                daemon_line = f"{ts} [{tag}] {status} {src} → {dst_part} {port_part}"
+                if isinstance(cached, dict) and cached.get("org"):
+                    daemon_line += f" | {cached['org']}"
+                _write_daemon_line(daemon_line)
+                continue
+
+            # ── Daemon mode with --no-asn: write immediately, no status ───────
+            if _DAEMON_MODE and not enable_asn:
+                _write_daemon_line(format_line(ts, tag, src, dst, proto, dpt, args.no_dns, enable_asn=False))
+                continue
+
+            # ── Interactive mode (non-daemon): original behavior unchanged ─────
             if enable_asn:
                 with _asn_lock:
                     cached = _asn_cache.get(dst, "__missing__")

@@ -43,6 +43,12 @@ source /etc/splitgate/vpn-gateway.env
 
 log "Starting VPN gateway rollback..."
 
+# ─── Step 1a: Stop + disable splitgate-watch.service (Phase 13 D-10) ─────────
+log "Stopping splitgate-watch.service..."
+systemctl stop splitgate-watch.service 2>/dev/null || true
+systemctl disable splitgate-watch.service 2>/dev/null || true
+log "splitgate-watch.service: stopped and disabled"
+
 # ─── Step 1: Stop + disable vpn-routing.service (D-08 step 1) ────────────────
 log "Stopping vpn-routing.service..."
 systemctl stop vpn-routing.service 2>/dev/null || true

@@ -85,8 +85,11 @@ SPLITGATE_DISPATCHER_TMP="/tmp/splitgate.tmp"
 LOGROTATE_CONF_LOCAL="configs/logrotate-vpn-gateway"
 LOGROTATE_CONF_REMOTE="/etc/logrotate.d/vpn-gateway"
 LOGROTATE_CONF_TMP="/tmp/logrotate-vpn-gateway.tmp"
+WATCH_SERVICE_LOCAL="systemd/splitgate-watch.service"
+WATCH_SERVICE_REMOTE="/etc/systemd/system/splitgate-watch.service"
+WATCH_SERVICE_TMP="/tmp/splitgate-watch.service.tmp"
 
-TOTAL_STAGES=27
+TOTAL_STAGES=28
 
 # ─── Argument Parsing (D-12) ─────────────────────────────────────────────────
 RUN_ROUTING=true
@@ -468,6 +471,13 @@ scp -o BatchMode=yes "${LOGROTATE_CONF_LOCAL}" "${SSH_HOST}:${LOGROTATE_CONF_TMP
 ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${LOGROTATE_CONF_TMP} ${LOGROTATE_CONF_REMOTE} && sudo chmod 644 ${LOGROTATE_CONF_REMOTE} && sudo chown root:root ${LOGROTATE_CONF_REMOTE}"
 echo "       logrotate config deployed (mode 644, root:root)."
 
+# ─── Stage 28: Deploy splitgate-watch.service to RPi (Phase 13 D-10) ─────────
+echo "[27/${TOTAL_STAGES}] Deploying splitgate-watch.service and enabling daemon on ${SSH_HOST}..."
+scp -o BatchMode=yes "${WATCH_SERVICE_LOCAL}" "${SSH_HOST}:${WATCH_SERVICE_TMP}"
+ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${WATCH_SERVICE_TMP} ${WATCH_SERVICE_REMOTE} && sudo chmod 644 ${WATCH_SERVICE_REMOTE} && sudo chown root:root ${WATCH_SERVICE_REMOTE}"
+ssh -o BatchMode=yes "${SSH_HOST}" "sudo systemctl daemon-reload && sudo systemctl enable --now splitgate-watch.service"
+echo "       splitgate-watch.service deployed and enabled (auto-starts on boot)."
+
 # ─── Final Summary ───────────────────────────────────────────────────────────
 # Tunnel bring-up is automated in Stage 12 (guarded by ip link show — Pitfall 5 safe).
 # --no-run skips both tunnel bring-up and routing.sh; run manually in that case.
@@ -496,6 +506,7 @@ echo "   PHASE 7: ${ASN_LOOKUP_REMOTE} (chmod +x, root:root — ASN/org enrichme
 echo "   PHASE 8: ${EXCLUDE_LIST_REMOTE} (mode 644, root:root, optional — deployed only if ${EXCLUDE_LIST_LOCAL} exists)"
 echo "   PHASE 10: ${SPLITGATE_DISPATCHER_REMOTE} (chmod +x, root:root — ergonomic CLI dispatcher)"
 echo "   PHASE 10: ${LOGROTATE_CONF_REMOTE} (mode 644, root:root — log rotation config for /etc/splitgate/logs/install.log)"
+echo "   PHASE 13: ${WATCH_SERVICE_REMOTE} (mode 644, root:root — splitgate-watch daemon)"
 echo ""
 echo " Next steps:"
 echo ""
