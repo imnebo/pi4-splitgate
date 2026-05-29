@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 12 complete — Phase 13 planned (4 plans, 3 waves)
-stopped_at: Phase 13 plans 01-04 created and verified; ready to execute
+status: Phase 13 complete — all 4 plans executed (routing config, renames, daemon, docs)
+stopped_at: Phase 13 Plan 04 complete — docs updated; all 32 plans done across 13 phases
 last_updated: "2026-05-29T00:00:00Z"
 progress:
   total_phases: 13
-  completed_phases: 12
+  completed_phases: 13
   total_plans: 32
-  completed_plans: 28
-  percent: 87
+  completed_plans: 32
+  percent: 100
 ---
 
 # State: RPi VPN Gateway
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Current Phase
 
-**Phase 13: Log Monitoring, Routing Refinement & Daemon — PLANNED (0/4 plans)**
+**Phase 13: Log Monitoring, Routing Refinement & Daemon — COMPLETE (4/4 plans)**
 
 10-00 complete: all source dirs moved to src/.
 10-01 complete: all internal /etc/ paths in 7 scripts/units migrated to /etc/splitgate/; vpn-rollback.sh D-18 teardown added.
@@ -47,7 +47,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 | 10 — Splitgate Ergonomics & Organization | ✓ Complete | 4/4 done | 100% |
 | 11 — README Documentation Overhaul | ✓ Complete | 1/1 done | 100% |
 | 12 — Buffered ASN Output | ✓ Complete | 1/1 done | 100% |
-| 13 — Log Monitoring, Routing Refinement & Daemon | ◆ Planned | 0/4 | 0% |
+| 13 — Log Monitoring, Routing Refinement & Daemon | ✓ Complete | 4/4 done | 100% |
 
 ## Requirements
 
@@ -95,6 +95,13 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 - Phase 9 D-05: all logger -t tag calls removed from routing.sh, update-vpn-routes, vpn-rollback.sh, vpn-status.sh
 - Phase 9 D-08: vpn-status.sh is interactive — log() is plain echo, no file write
 - Phase 9 D-11: vpn-rollback.sh Step 7b adds rm -f /etc/logrotate.d/vpn-gateway before rm -rf /etc/splitgate
+- Phase 13 D-01/D-02: isp-routes-custom.txt gets 11 confirmed-RU /24 CIDRs (Selectel, MIRAN-AS, Keenetic captive, SonicDuo, MegaFon, Raiffeisenbank, VimpelCom, SOVAM); vpn-routes-custom.txt gets commented candidate block (Cherry Servers LT, Google PoPs, Cloudflare non-DNS, Amazon CF/EC2, Akamai, Azure EU)
+- Phase 13 D-03/D-04: watch-routes.py STATUS_DELAY=3 + DEDUP_TTL=30; /proc/net/nf_conntrack for ✓/✗ status (plain file read, no subprocess); one complete line written after delay; status always on in daemon mode
+- Phase 13 D-05/D-06: --daemon flag writes to /etc/splitgate/logs/watch-YYYY-MM-DD.log (dated, append); midnight date rotation; no --daemon = stdout (interactive unchanged)
+- Phase 13 D-07: vpn-gateway.log → install.log across routing.sh, update-vpn-routes, vpn-rollback.sh, logrotate-vpn-gateway, deploy.sh; live migration SSH mv in Stage 22c
+- Phase 13 D-08: ru-exclude.txt → ru-list-exclude.txt across routing.sh, update-vpn-routes, deploy.sh (EXCLUDE_LIST vars + Stage 22c + comment), ru-list-exclude.txt.example; live migration SSH mv in deploy.sh Stage 22c
+- Phase 13 D-09: install log improvements — update-vpn-routes logs source domain, actual excluded CIDRs (not just count), route count after download; routing.sh logs excluded CIDRs explicitly + Stage 5b/5c entry counts
+- Phase 13 D-10: splitgate-watch.service created (ExecStart=watch-routes.py --daemon, Restart=on-failure, StandardError→watch-error.log); TOTAL_STAGES=28; Stage 28 deploys + enables; vpn-rollback.sh Step 1a stops/disables service; logrotate postrotate cleans watch-*.log >14d
 
 ## Hardware Verified
 
@@ -105,9 +112,9 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Last Session
 
-**Stopped at:** Phase 13 planning complete — 4 plans (13-01 through 13-04) in 3 waves; plan-checker PASS (5 warnings, 0 blockers); 17-vs-18 CIDR count fixed in 13-01-PLAN.md
+**Stopped at:** Phase 13 complete — all 4 plans done; 11 RU CIDRs added; log renames complete; daemon + systemd deployed; docs updated
 **Timestamp:** 2026-05-29T00:00:00Z
-**Resume:** Execute Phase 13 — `/gsd:execute-phase 13`
+**Resume:** Deploy to RPi: `cd src && ./deploy.sh`
 
 ---
 *Initialized: 2026-05-18*
