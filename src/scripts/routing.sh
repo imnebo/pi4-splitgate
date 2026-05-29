@@ -43,7 +43,7 @@ SUBNET_TMP="/tmp/ru-subnets.tmp"
 IPTABLES_RULES="/etc/iptables/rules.v4"
 
 # ─── Logging functions (Phase 9: file-append to /etc/splitgate/logs/) ────────
-LOG_FILE="/etc/splitgate/logs/vpn-gateway.log"
+LOG_FILE="/etc/splitgate/logs/install.log"
 
 log() {
     echo "[$(date '+%F %T')] [routing] $*" >> "${LOG_FILE}"
@@ -86,19 +86,21 @@ if [[ "$SKIP_DOWNLOAD" == true ]]; then
         exit 1
     fi
 else
-    # Build effective URL: append &exclude[cidr4]=CIDR for each line in ru-exclude.txt.
+    # Build effective URL: append &exclude[cidr4]=CIDR for each line in ru-list-exclude.txt.
     # Mirrors update-vpn-routes logic so both scripts produce the same filtered list.
     EFFECTIVE_URL="${RU_SUBNET_URL}"
-    EXCLUDE_FILE="/etc/splitgate/ru-exclude.txt"
+    EXCLUDE_FILE="/etc/splitgate/ru-list-exclude.txt"
     if [[ -f "${EXCLUDE_FILE}" ]]; then
         exclude_count=0
+        exclude_list=""
         while IFS= read -r line; do
             [[ "${line}" =~ ^# || -z "${line}" ]] && continue
             EFFECTIVE_URL="${EFFECTIVE_URL}&exclude[cidr4]=${line}"
             (( exclude_count++ )) || true
+            exclude_list+="${line} "
         done < "${EXCLUDE_FILE}"
         if (( exclude_count > 0 )); then
-            log "Stage 1: Applying ${exclude_count} exclusion(s) from ${EXCLUDE_FILE}"
+            log "Stage 1: Applying ${exclude_count} exclusion(s) from ${EXCLUDE_FILE}: ${exclude_list%% }"
         fi
     fi
     log "Stage 1: Downloading RU subnet list"
@@ -154,7 +156,7 @@ ip route flush dev "${VPN_IFACE}" 2>/dev/null || true
 ip route del "${VPN_SERVER_IP}/32" 2>/dev/null || true
 ip route del default 2>/dev/null || true
 # Flush all ISP routes via KEENETIC_GW — required so stale routes from a previous
-# white-list.txt (e.g. CIDRs later moved to ru-exclude.txt) don't persist after rebuild.
+# white-list.txt (e.g. CIDRs later moved to ru-list-exclude.txt) don't persist after rebuild.
 while IFS= read -r cidr; do
     [[ -z "$cidr" ]] && continue
     ip route del "$cidr" via "${KEENETIC_GW}" 2>/dev/null || true

@@ -5,7 +5,7 @@
 #
 # Requirement:  AUTO-03 — routing.sh runs daily via /etc/cron.d/vpn-routes
 # Decisions:    D-06 (sha256 checksum compare), D-07 (deploy target /etc/splitgate/update-vpn-routes),
-#               D-09 (file-append to /etc/splitgate/logs/vpn-gateway.log)
+#               D-09 (file-append to /etc/splitgate/logs/install.log)
 # Driven by:    /etc/cron.d/vpn-routes (written by deploy.sh Stage 15 from CRON_UPDATE_HOUR)
 #
 # On download failure: exit 0 (no cron failure mail; existing routes remain intact)
@@ -21,8 +21,8 @@ SUBNET_FILE="/etc/splitgate/white-list.txt"
 # runs while an operator is also running routing.sh manually.
 SUBNET_TMP="/tmp/ru-subnets-cron.tmp"
 
-# ─── Logging (D-09: file-append to /etc/splitgate/logs/vpn-gateway.log) ──────
-log() { echo "[$(date '+%F %T')] [vpn-routes] $*" >> /etc/splitgate/logs/vpn-gateway.log; }
+# ─── Logging (D-09: file-append to /etc/splitgate/logs/install.log) ──────────
+log() { echo "[$(date '+%F %T')] [vpn-routes] $*" >> /etc/splitgate/logs/install.log; }
 
 # ─── Source environment ───────────────────────────────────────────────────────
 # /etc/splitgate/vpn-gateway.env is deployed by Phase 1 (deploy.sh Stage H, CONF-02).
@@ -35,25 +35,28 @@ fi
 source /etc/splitgate/vpn-gateway.env
 
 # ─── Build effective download URL (D-05, D-06) ───────────────────────────────
-# If /etc/splitgate/ru-exclude.txt exists and is non-empty, append &exclude[cidr4]=CIDR
+# If /etc/splitgate/ru-list-exclude.txt exists and is non-empty, append &exclude[cidr4]=CIDR
 # for each non-comment non-blank line. Absent or empty file → URL unchanged.
 EFFECTIVE_URL="${RU_SUBNET_URL}"
-EXCLUDE_FILE="/etc/splitgate/ru-exclude.txt"
+EXCLUDE_FILE="/etc/splitgate/ru-list-exclude.txt"
 if [[ -f "${EXCLUDE_FILE}" ]]; then
     exclude_count=0
+    exclude_list=""
     while IFS= read -r line; do
         # Skip comment lines (starting with #) and blank lines (D-02)
         [[ "${line}" =~ ^# || -z "${line}" ]] && continue
         EFFECTIVE_URL="${EFFECTIVE_URL}&exclude[cidr4]=${line}"
         (( exclude_count++ )) || true
+        exclude_list+="${line} "
     done < "${EXCLUDE_FILE}"
     if (( exclude_count > 0 )); then
-        log "Excluding ${exclude_count} CIDR(s) from RU subnet download"
+        log "Excluding ${exclude_count} CIDR(s) from RU subnet download: ${exclude_list%% }"
     fi
 fi
 
 # ─── Stage 1: Download RU subnet list to temp file ───────────────────────────
 log "Checking for RU subnet list update..."
+log "Source: russia.iplist.opencck.org"
 
 if ! curl -fsSLg "${EFFECTIVE_URL}" -o "${SUBNET_TMP}" 2>/dev/null; then
     log "Download failed — skipping subnet update"
@@ -88,6 +91,8 @@ log "Subnet list changed (old: ${old_hash:0:12}... new: ${new_hash:0:12}...) —
 
 # mv is atomic on the same filesystem (/tmp → /etc, both on rootfs on RPi)
 mv "${SUBNET_TMP}" "${SUBNET_FILE}"
+route_count=$(grep -c . "${SUBNET_FILE}" || echo 0)
+log "Downloaded ${route_count} routes"
 
 # --no-update: skip re-download; use the file we just mv'd into place
 # Non-zero exit from routing.sh propagates via set -e → cron generates failure mail
