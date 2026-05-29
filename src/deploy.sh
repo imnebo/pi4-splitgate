@@ -71,9 +71,9 @@ ISP_CUSTOM_TMP="/tmp/isp-routes-custom.tmp"
 VPN_FORCE_LOCAL="configs/vpn-routes-custom.txt"
 VPN_FORCE_REMOTE="/etc/splitgate/vpn-routes-custom.txt"
 VPN_FORCE_TMP="/tmp/vpn-routes-custom.tmp"
-EXCLUDE_LIST_LOCAL="configs/ru-exclude.txt"
-EXCLUDE_LIST_REMOTE="/etc/splitgate/ru-exclude.txt"
-EXCLUDE_LIST_TMP="/tmp/ru-exclude.tmp"
+EXCLUDE_LIST_LOCAL="configs/ru-list-exclude.txt"
+EXCLUDE_LIST_REMOTE="/etc/splitgate/ru-list-exclude.txt"
+EXCLUDE_LIST_TMP="/tmp/ru-list-exclude.tmp"
 NM_DISPATCHER_LOCAL="scripts/10-vpn-routes"
 NM_DISPATCHER_REMOTE="/etc/NetworkManager/dispatcher.d/10-vpn-routes"
 NM_DISPATCHER_TMP="/tmp/10-vpn-routes.tmp"
@@ -413,12 +413,13 @@ else
     echo "       ${VPN_FORCE_LOCAL} not found in repo — skipping VPN-force file deploy (D-05)."
 fi
 
-# ─── Stage 22c: Deploy ru-exclude.txt to RPi (D-07, D-08) ───────────────────
-echo "[21c/${TOTAL_STAGES}] Deploying ru-exclude.txt to ${SSH_HOST} (if present)..."
+# ─── Stage 22c: Deploy ru-list-exclude.txt to RPi (D-07, D-08) ──────────────
+echo "[21c/${TOTAL_STAGES}] Deploying ru-list-exclude.txt to ${SSH_HOST} (if present)..."
 if [[ -f "${EXCLUDE_LIST_LOCAL}" ]]; then
+    ssh -o BatchMode=yes "${SSH_HOST}" "[ -f /etc/splitgate/ru-exclude.txt ] && sudo mv /etc/splitgate/ru-exclude.txt /etc/splitgate/ru-list-exclude.txt || true"
     scp -o BatchMode=yes "${EXCLUDE_LIST_LOCAL}" "${SSH_HOST}:${EXCLUDE_LIST_TMP}"
     ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${EXCLUDE_LIST_TMP} ${EXCLUDE_LIST_REMOTE} && sudo chmod 644 ${EXCLUDE_LIST_REMOTE} && sudo chown root:root ${EXCLUDE_LIST_REMOTE}"
-    echo "       ru-exclude.txt deployed (mode 644, root:root)."
+    echo "       ru-list-exclude.txt deployed (mode 644, root:root)."
 else
     echo "       ${EXCLUDE_LIST_LOCAL} not found in repo — skipping exclude list deploy (D-04)."
 fi
@@ -437,7 +438,7 @@ ssh -o BatchMode=yes "${SSH_HOST}" "sudo mv ${ASN_LOOKUP_TMP} ${ASN_LOOKUP_REMOT
 echo "       asn-lookup.py deployed (chmod +x, root:root)."
 
 # ─── Stage 24: Bring up VPN tunnel + Activate routing.sh (D-12, D-18, D-04, D-06/P5) ──
-# Single routing.sh run — after all config files (ru-exclude.txt, isp-routes-custom.txt, vpn-routes-custom.txt) are deployed.
+# Single routing.sh run — after all config files (ru-list-exclude.txt, isp-routes-custom.txt, vpn-routes-custom.txt) are deployed.
 # awg-quick up is not idempotent (Pitfall 5) — guard with ip link show before running.
 if [ "${RUN_ROUTING}" = "true" ]; then
   echo "[24/${TOTAL_STAGES}] Bringing up VPN tunnel and activating routing.sh on ${SSH_HOST}..."
@@ -494,7 +495,7 @@ echo "   PHASE 5: ${ISP_CUSTOM_REMOTE} (mode 644, root:root, optional — deploy
 echo "   PHASE 7: ${ASN_LOOKUP_REMOTE} (chmod +x, root:root — ASN/org enrichment helper)"
 echo "   PHASE 8: ${EXCLUDE_LIST_REMOTE} (mode 644, root:root, optional — deployed only if ${EXCLUDE_LIST_LOCAL} exists)"
 echo "   PHASE 10: ${SPLITGATE_DISPATCHER_REMOTE} (chmod +x, root:root — ergonomic CLI dispatcher)"
-echo "   PHASE 10: ${LOGROTATE_CONF_REMOTE} (mode 644, root:root — log rotation config for /etc/splitgate/logs/vpn-gateway.log)"
+echo "   PHASE 10: ${LOGROTATE_CONF_REMOTE} (mode 644, root:root — log rotation config for /etc/splitgate/logs/install.log)"
 echo ""
 echo " Next steps:"
 echo ""
