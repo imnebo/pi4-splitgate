@@ -1,0 +1,41 @@
+# configs/isp-routes-custom.txt
+#
+# CIDRs that bypass VPN and exit via ISP (KEENETIC_GW).
+# Applied in Stage 5b alongside the auto-downloaded RU list.
+# vpn-routes-custom.txt wins if the same CIDR appears in both files.
+# One CIDR per line. No inline comments.
+#
+# Log analysis (2026-05-28, host 192.168.1.237):
+# 11 confirmed-RU CIDRs added as active entries below (Selectel, MIRAN-AS,
+# RU-JSCIOT, SonicDuo, SOVAM, MegaFon, Raiffeisenbank, VimpelCom, and
+# cloud.example.com/RU subnets that appeared as VPN-routed false-positives).
+# - Yandex (213.180.204.x), Google RU CDN (192.178.183.x) — already
+#   covered by the auto-downloaded RU list; no need to duplicate here.
+# - Non-Russian ISP leaks (Fastly/GitHub, Akamai, AWS CloudFront EU,
+#   Cloudflare DNS) are fixed in vpn-routes-custom.txt instead.
+#
+# Add entries here if a specific non-Russian service breaks under VPN
+# or you want it unmetered via direct ISP.
+
+# Selectel (JSC Selectel, RU) — seen via VPN
+87.228.71.0/24
+# Selectel (JSC Selectel, RU) — seen via VPN
+95.213.181.0/24
+# MIRAN-AS (captive116.keenetic.ru) — seen via VPN
+185.162.92.0/24
+# RU-JSCIOT (captive113/115.keenetic.ru) — seen via VPN
+89.169.29.0/24
+# RU datacenter (vlan1354.dci6) — seen via VPN
+31.135.14.0/24
+# SonicDuo-AS (RU) — seen via VPN
+31.173.34.0/24
+# SOVAM-AS (RU) — seen via VPN
+81.9.21.0/24
+# MegaFon PJSC (RU) — seen via VPN
+85.26.231.0/24
+# Raiffeisenbank RBRU-AS (RU) — seen via VPN
+193.28.44.0/24
+# VimpelCom/Corbina (RU) — seen via VPN
+128.75.237.0/24
+# RU ASN (cloud.example.com, ASN confirmed RU) — seen via VPN
+178.249.69.0/24
