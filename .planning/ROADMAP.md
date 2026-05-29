@@ -1,7 +1,7 @@
 # Roadmap: RPi VPN Gateway
 
 **Created:** 2026-05-18
-**Phases:** 12
+**Phases:** 13
 **Requirements mapped:** 20/20 ✓
 
 ---
@@ -22,6 +22,7 @@
 | 10 | Splitgate Ergonomics & Organization | Consolidate RPi files under /etc/splitgate/, splitgate dispatcher CLI, log rotation | ✓ Complete |
 | 11 | README Documentation Overhaul | Trim README to 3 quick-start sections; all technical detail in docs/REFERENCE.md | ✓ Complete |
 | 12 | Buffered ASN Output | Hold watch-routes.py lines until ASN lookup completes; flush after BUFFER_TIMEOUT | ✓ Complete |
+| 13 | Log Monitoring, Routing Refinement & Daemon | Daemon mode for watch-routes.py (✓/✗ status), install.log + ru-list-exclude.txt renames, isp-routes-custom.txt RU CIDRs | ✓ Complete |
 
 ---
 
@@ -321,5 +322,31 @@ Plans:
 **Phase 12 complete ✓**
 
 ---
+
+### Phase 13: Log Monitoring, Routing Refinement & Daemon
+
+**Goal:** Convert watch-routes.py to a systemd daemon writing dated daily logs with connection status (✓/✗); refine RU routing (add missing RU CIDRs to isp-routes-custom.txt, add non-RU candidates to vpn-routes-custom.txt commented); rename vpn-gateway.log → install.log and ru-exclude.txt → ru-list-exclude.txt; improve install log verbosity (show URL, excluded CIDRs, route counts); update docs
+**Requirements**: None mapped (operational UX + routing hygiene phase)
+**Depends on:** Phase 12 (watch-routes.py), Phase 10 (/etc/splitgate/ namespace), Phase 8 (ru-exclude.txt), Phase 9 (logrotate)
+**Plans:** 4 plans
+
+Plans:
+
+**Wave 1 (parallel):**
+
+- [x] 13-01-PLAN.md — Routing config updates (isp-routes-custom.txt + vpn-routes-custom.txt) ✓ 2026-05-29
+- [x] 13-02-PLAN.md — System cleanup: install.log + ru-list-exclude.txt renames, install log verbosity, logrotate postrotate ✓ 2026-05-29
+
+**Wave 2 (after Wave 1):**
+
+- [x] 13-03-PLAN.md — watch-routes.py daemon mode (--daemon, ✓/✗ status, dedup) + splitgate-watch.service + deploy.sh Stage 27 + vpn-rollback.sh ✓ 2026-05-29
+
+**Wave 3 (after all):**
+
+- [x] 13-04-PLAN.md — Documentation (README.md, docs/README.ru.md, docs/REFERENCE.md, STATE.md) ✓ 2026-05-29
+
+**Phase 13 complete ✓**
+
+---
 *Created: 2026-05-18*
-*Updated: 2026-05-28 — Phase 12 added: buffered ASN output in watch-routes.py*
+*Updated: 2026-05-29 — Phase 13 planned: 4 plans across 3 waves*
