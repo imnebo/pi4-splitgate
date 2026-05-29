@@ -62,6 +62,10 @@ STATUS_DELAY = 3          # seconds to wait before conntrack check
 DEDUP_TTL = 30            # seconds before same (src, dst, dport) logged again
 LOG_DIR = "/etc/splitgate/logs"   # base directory for dated log files
 
+# Conntrack backend: None=not probed yet
+_conntrack_backend: str | None = None  # "procfs" | "subprocess" | "none"
+_CONNTRACK_BIN: str = ""  # resolved path to conntrack binary
+
 # ─── Daemon mode state ────────────────────────────────────────────────────────
 _DAEMON_MODE: bool = False   # set to True in main() when --daemon flag is active
 _dedup: dict = {}            # maps (src, dst, dport) → monotonic timestamp of last log
@@ -87,28 +91,75 @@ def resolve(ip: str, no_dns: bool) -> str:
     return _dns_cache[ip]
 
 
-def _check_conntrack(src: str, dst: str, dpt: str) -> str:
-    """Return '✓' if an ESTABLISHED or TIME_WAIT conntrack entry exists for this tuple.
-
-    Reads /proc/net/nf_conntrack line-by-line without subprocesses.
-    Returns '✗' if the file exists but no matching entry is found.
-    Returns '✗' on OSError (file not found, permission denied, etc.).
-
-    dpt argument is a string (e.g. '443') — used as-is in the search.
-    """
-    try:
-        with open("/proc/net/nf_conntrack", "r") as f:
-            for line in f:
-                if (
-                    f"src={src}" in line
-                    and f"dst={dst}" in line
-                    and f"dport={dpt}" in line
-                    and ("ESTABLISHED" in line or "TIME_WAIT" in line)
-                ):
-                    return "✓"
-    except OSError:
-        return "✗"
+def _conntrack_match(lines: list[str], src: str, dst: str, dpt: str) -> str:
+    """Match conntrack lines against (src, dst, dpt). Returns '✓', '✗', or ''."""
+    needle_src = f"src={src}"
+    needle_dst = f"dst={dst}"
+    needle_dpt = f"dport={dpt}"
+    for line in lines:
+        if (
+            needle_src in line
+            and needle_dst in line
+            and needle_dpt in line
+            and ("ESTABLISHED" in line or "TIME_WAIT" in line)
+        ):
+            return "✓"
     return "✗"
+
+
+def _check_conntrack(src: str, dst: str, dpt: str) -> str:
+    """Return '✓'/'✗' if conntrack entry found, '' if conntrack unavailable.
+
+    Tries /proc/net/nf_conntrack first (zero subprocess overhead).
+    Falls back to `conntrack -L` subprocess when CONFIG_NF_CONNTRACK_PROCFS
+    is not set in the kernel (e.g. RPi 6.12 default build).
+    Returns '' (no status shown) if neither backend is available.
+    UDP connections often return '✗' — conntrack uses UNREPLIED/ASSURED,
+    not ESTABLISHED, for UDP. This is expected and acceptable.
+    """
+    global _conntrack_backend
+
+    # ── Probe once ──────────────────────────────────────────────────────────
+    if _conntrack_backend is None:
+        global _CONNTRACK_BIN
+        if os.path.exists("/proc/net/nf_conntrack"):
+            _conntrack_backend = "procfs"
+        else:
+            # conntrack binary may be in /usr/sbin (not in daemon PATH)
+            for candidate in ("/usr/sbin/conntrack", "/sbin/conntrack", "conntrack"):
+                try:
+                    subprocess.run(
+                        [candidate, "--version"],
+                        capture_output=True, timeout=2.0,
+                    )
+                    _CONNTRACK_BIN = candidate
+                    _conntrack_backend = "subprocess"
+                    break
+                except Exception:
+                    continue
+            else:
+                _conntrack_backend = "none"
+
+    # ── procfs (fast path) ──────────────────────────────────────────────────
+    if _conntrack_backend == "procfs":
+        try:
+            with open("/proc/net/nf_conntrack", "r") as f:
+                return _conntrack_match(f.readlines(), src, dst, dpt)
+        except OSError:
+            return ""
+
+    # ── subprocess fallback (conntrack -L via netlink) ─────────────────────
+    if _conntrack_backend == "subprocess":
+        try:
+            proc = subprocess.run(
+                [_CONNTRACK_BIN, "-L"],
+                capture_output=True, text=True, timeout=2.0,
+            )
+            return _conntrack_match(proc.stdout.splitlines(), src, dst, dpt)
+        except Exception:
+            return ""
+
+    return ""
 
 
 def _open_log_file():
