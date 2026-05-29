@@ -8,7 +8,7 @@
 # Decisions honored:
 #   D-08: Rollback order — stop+disable services, flush routes, remove NAT, remove cron,
 #         restore ISP default route via static ip route add (no dhclient dependency)
-#   D-09: File-append to /etc/splitgate/logs/vpn-gateway.log; final state printed to stdout
+#   D-09: File-append to /etc/splitgate/logs/install.log; final state printed to stdout
 #   D-18: Teardown removes /usr/local/bin/splitgate and /etc/splitgate/ (entire tree);
 #         /etc/amnezia/amneziawg/awg0.conf and AmneziaWG packages preserved
 #
@@ -31,7 +31,7 @@
 set -euo pipefail
 
 # ─── Logging (D-09: file-append + echo to stdout for operator visibility) ──────
-log() { echo "[$(date '+%F %T')] [vpn-rollback] $*" | tee -a /etc/splitgate/logs/vpn-gateway.log; }
+log() { echo "[$(date '+%F %T')] [vpn-rollback] $*" | tee -a /etc/splitgate/logs/install.log; }
 
 # ─── Guard: source env file (D-18) ───────────────────────────────────────────
 if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
@@ -152,7 +152,7 @@ echo ""
 echo " Removed (D-18 splitgate teardown):"
 echo "   /usr/local/bin/splitgate"
 echo "   /etc/logrotate.d/vpn-gateway"
-echo "   /etc/splitgate/ (entire tree, including white-list.txt, isp-routes-custom.txt, vpn-routes-custom.txt, ru-exclude.txt, vpn-gateway.env, logs/)"
+echo "   /etc/splitgate/ (entire tree, including white-list.txt, isp-routes-custom.txt, vpn-routes-custom.txt, ru-list-exclude.txt, vpn-gateway.env, logs/)"
 echo ""
 echo " Preserved (not removed):"
 echo "   /etc/amnezia/amneziawg/awg0.conf"
