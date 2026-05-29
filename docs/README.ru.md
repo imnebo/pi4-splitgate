@@ -77,10 +77,10 @@ cp src/configs/isp-routes-custom.txt.example src/configs/isp-routes-custom.txt
 cp src/configs/vpn-routes-custom.txt.example src/configs/vpn-routes-custom.txt
 ```
 
-**Опционально — исключения из списка RU-адресов** (`src/configs/ru-exclude.txt`): IP-диапазоны, которые нужно убрать из загружаемого списка RU на стороне сервера (используется, когда список RU ошибочно включает диапазон, который должен туннелироваться). Создайте из примера при необходимости:
+**Опционально — исключения из списка RU-адресов** (`src/configs/ru-list-exclude.txt`): IP-диапазоны, которые нужно убрать из загружаемого списка RU на стороне сервера (используется, когда список RU ошибочно включает диапазон, который должен туннелироваться). Создайте из примера при необходимости:
 
 ```bash
-cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
+cp src/configs/ru-list-exclude.txt.example src/configs/ru-list-exclude.txt
 ```
 
 Все три файла добавлены в `.gitignore`. Полный воркфлоу: [REFERENCE.md](REFERENCE.md).
@@ -142,3 +142,53 @@ ssh pi4 "splitgate rollback"
 ```
 
 [Полный справочник CLI, проверка маршрутизации, решение проблем →](REFERENCE.md)
+
+---
+
+## Демон мониторинга маршрутов
+
+`splitgate-watch.service` запускает `watch-routes.py --daemon` как постоянный systemd-сервис и пишет
+лог соединений в `/etc/splitgate/logs/watch-YYYY-MM-DD.log` (новый файл каждый день, хранение 14 дней).
+Разворачивается на этапе 28 скрипта `deploy.sh`.
+
+```bash
+# Управление сервисом
+ssh pi4 "systemctl status splitgate-watch"
+ssh pi4 "sudo systemctl restart splitgate-watch"
+
+# Просмотр лога за сегодня
+ssh pi4 "tail -f /etc/splitgate/logs/watch-$(date +%F).log"
+
+# Найти ISP-маршруты без активного соединения (✗ = не найдено в conntrack)
+ssh pi4 "grep '[ISP] ✗' /etc/splitgate/logs/watch-$(date +%F).log"
+```
+
+Каждая строка лога содержит тег маршрутизации, статус соединения, источник/назначение, протокол:порт и организацию:
+
+```
+2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+```
+
+`✓` = соединение найдено в conntrack (ESTABLISHED/TIME_WAIT); `✗` = не найдено (UDP-соединения всегда показывают `✗`).
+
+**Воркфлоу настройки** — если строки `[ISP] ✗` указывают на RU-подсети, идущие через ISP, а должны через VPN, раскомментируйте нужный блок в `src/configs/vpn-routes-custom.txt` и перезапустите `routing.sh`.
+
+---
+
+## Лог-файлы
+
+| Файл | Путь на RPi | Назначение |
+|------|-------------|------------|
+| `install.log` | `/etc/splitgate/logs/install.log` | Вывод `routing.sh` и `update-vpn-routes` — источник загрузки, исключённые CIDR, количество маршрутов |
+| `watch-YYYY-MM-DD.log` | `/etc/splitgate/logs/watch-2026-05-29.log` | Ежедневный лог соединений, записываемый `splitgate-watch.service` в режиме демона |
+| `watch-error.log` | `/etc/splitgate/logs/watch-error.log` | Вывод stderr от `watch-routes.py --daemon` (ошибки запуска, исключения Python) |
+
+```bash
+# Просмотр лога установки/маршрутизации
+ssh pi4 "sudo tail -20 /etc/splitgate/logs/install.log"
+ssh pi4 "sudo grep vpn-routes /etc/splitgate/logs/install.log | tail -10"
+
+# Просмотр лога слежения за сегодня
+ssh pi4 "sudo tail -f /etc/splitgate/logs/watch-$(date +%F).log"
+```

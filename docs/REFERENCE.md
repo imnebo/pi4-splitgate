@@ -35,10 +35,10 @@ Source is `.env` in this repo. All except `SSH_HOST` are deployed to `/etc/split
 | Autostart | 13–14 | Reload systemd, enable `awg-quick@awg0` + `vpn-routing.service` at boot, deploy `update-vpn-routes` |
 | Cron + rollback | 15–17 | Write `/etc/cron.d/vpn-routes` (daily at `CRON_UPDATE_HOUR:00`), deploy `vpn-rollback.sh`, ensure dnsmasq installed |
 | Logging | 18–20 | Deploy `dnsmasq.conf`, enable and start dnsmasq, deploy `vpn-status.sh`, deploy `watch-routes.py` |
-| Custom routes + NM | 21–22 | Conditionally deploy `isp-routes-custom.txt`, `vpn-routes-custom.txt`, and `ru-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
+| Custom routes + NM | 21–22 | Conditionally deploy `isp-routes-custom.txt`, `vpn-routes-custom.txt`, and `ru-list-exclude.txt` if present; deploy NM dispatcher `10-vpn-routes` |
 | ASN helper | 23 | Deploy `asn-lookup.py` to `/etc/splitgate/asn-lookup.py` |
 | Final activation | 24 | Bring up `awg0` tunnel (if not up), run `routing.sh` to apply all routes, iptables LOG rules, and exception routes |
-| Splitgate artifacts | 25–26 | Deploy `splitgate` dispatcher to `/usr/local/bin/splitgate` (chmod +x); deploy `logrotate-vpn-gateway` |
+| Splitgate artifacts | 25–27 | Deploy `splitgate` dispatcher to `/usr/local/bin/splitgate` (chmod +x); deploy `logrotate-vpn-gateway`; deploy and enable `splitgate-watch.service` |
 
 ---
 
@@ -156,7 +156,7 @@ ssh pi4 "sudo journalctl -k -n 50 --no-pager | grep -E '\[VPN\]|\[ISP\]'"
 ssh pi4 "sudo journalctl -u vpn-routing -n 50 --no-pager"
 
 # Daily subnet update log (Phase 9: file-based)
-ssh pi4 "sudo grep '\[vpn-routes\]' /etc/splitgate/logs/vpn-gateway.log | tail -20"
+ssh pi4 "sudo grep '\[vpn-routes\]' /etc/splitgate/logs/install.log | tail -20"
 
 # NM dispatcher route restore events (carrier-change recovery — still journald)
 ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
@@ -180,6 +180,13 @@ Two files let you override the auto-downloaded RU list without modifying it:
 | `vpn-routes-custom.txt` | CIDRs forced through VPN, even if in RU list | Highest — overrides everything |
 
 If the same CIDR appears in both files, `vpn-routes-custom.txt` wins.
+
+**Current state (Phase 13):** `isp-routes-custom.txt` ships with 11 active RU /24 CIDRs pre-populated
+(Selectel ×2, MIRAN-AS/Keenetic captive portals, RU-JSCIOT/Keenetic captive, SonicDuo, SOVAM, MegaFon,
+Raiffeisenbank, VimpelCom/Corbina, cloud.example.com RU ASN) — these were confirmed RU but previously
+routing via VPN. `vpn-routes-custom.txt` includes a commented candidate block for non-RU false-positives
+(Cherry Servers LT, Google PoPs, Cloudflare, CloudFront, EC2, Akamai, Azure EU) — uncomment entries
+as needed when those services fail under ISP routing.
 
 ---
 
@@ -304,7 +311,7 @@ Unlike custom exceptions which add ISP-bypass routes on top of the downloaded li
 filter removes CIDRs from the downloaded list at the source — they never appear in
 `/etc/splitgate/white-list.txt` and follow the default route (VPN).
 
-**How it works:** When `/etc/splitgate/ru-exclude.txt` is present, `update-vpn-routes` appends
+**How it works:** When `/etc/splitgate/ru-list-exclude.txt` is present, `update-vpn-routes` appends
 `&exclude[cidr4]=CIDR` query parameters to `RU_SUBNET_URL` before calling curl. The iplist
 service filters those ranges server-side. If the file is absent or empty, behavior is unchanged.
 
@@ -320,7 +327,7 @@ network block using `whois` or `ipinfo.io`.
 **Step 2: Create the exclusion file**
 
 ```bash
-cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
+cp src/configs/ru-list-exclude.txt.example src/configs/ru-list-exclude.txt
 ```
 
 Edit and add CIDRs:
@@ -331,7 +338,7 @@ Edit and add CIDRs:
 142.251.0.0/16
 ```
 
-Note: `src/configs/ru-exclude.txt` is gitignored — never committed.
+Note: `src/configs/ru-list-exclude.txt` is gitignored — never committed.
 
 **Step 3: Deploy**
 
@@ -339,14 +346,14 @@ Note: `src/configs/ru-exclude.txt` is gitignored — never committed.
 bash src/deploy.sh
 ```
 
-Stage 22b SCPs `src/configs/ru-exclude.txt` to `/etc/splitgate/ru-exclude.txt`.
+Stage 22c SCPs `src/configs/ru-list-exclude.txt` to `/etc/splitgate/ru-list-exclude.txt`.
 
 **Step 4: Trigger a route rebuild**
 
 ```bash
 ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
-ssh pi4 "sudo grep '\[vpn-routes\]' /etc/splitgate/logs/vpn-gateway.log | tail -10"
-# expect: "Excluding N CIDR(s) from RU subnet download" followed by rebuild log
+ssh pi4 "sudo grep '\[vpn-routes\]' /etc/splitgate/logs/install.log | tail -10"
+# expect: "Excluding: CIDR1, CIDR2, ..." followed by rebuild log
 ```
 
 **Step 5: Verify**
@@ -410,14 +417,18 @@ bash src/deploy.sh
 ├── watch-routes.py
 ├── asn-lookup.py
 ├── vpn-gateway.env
-├── white-list.txt          (generated at runtime)
-├── isp-routes-custom.txt  (optional — ISP-bypass custom routes)
-├── vpn-routes-custom.txt  (optional — VPN-force custom routes)
-├── ru-exclude.txt          (optional — server-side RU list exclusions)
-└── logs/                   (created at deploy; Phase 9 writes vpn-gateway.log here)
+├── white-list.txt              (generated at runtime)
+├── isp-routes-custom.txt       (optional — ISP-bypass custom routes; 11 active RU CIDRs pre-populated)
+├── vpn-routes-custom.txt       (optional — VPN-force custom routes; commented candidate block included)
+├── ru-list-exclude.txt         (optional — server-side RU list exclusions)
+└── logs/
+    ├── install.log             (output from routing.sh and update-vpn-routes)
+    ├── watch-YYYY-MM-DD.log    (daily connection log written by splitgate-watch.service)
+    └── watch-error.log         (stderr from watch-routes.py --daemon)
 
-/usr/local/bin/splitgate    (dispatcher CLI)
-/etc/logrotate.d/vpn-gateway (rotates /etc/splitgate/logs/vpn-gateway.log)
+/usr/local/bin/splitgate         (dispatcher CLI)
+/etc/systemd/system/splitgate-watch.service  (route watcher daemon)
+/etc/logrotate.d/vpn-gateway     (rotates install.log; deletes watch-*.log files older than 14 days)
 ```
 
 Files that stay at system locations (required by their consuming daemon):
@@ -437,7 +448,7 @@ Files that stay at system locations (required by their consuming daemon):
 
 **Synopsis:** `bash src/deploy.sh [--no-run]`
 
-Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 26 stages.
+Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 28 stages.
 Sources `.env` and `.env.secrets`; validates keys before any remote operation.
 
 | Flag | Description |
@@ -532,18 +543,19 @@ Normally called by cron daily at `CRON_UPDATE_HOUR:00` (default 5:00 AM). Can be
 
 Behavior:
 - Builds `EFFECTIVE_URL` from `RU_SUBNET_URL`; appends `&exclude[cidr4]=CIDR` for each line in
-  `/etc/splitgate/ru-exclude.txt` (if present)
+  `/etc/splitgate/ru-list-exclude.txt` (if present)
+- Logs download source domain, actual excluded CIDRs, and downloaded route count to `install.log`
 - Downloads RU subnet list and SHA256-compares against existing `/etc/splitgate/white-list.txt`
 - If hash matches: exits 0 (no rebuild)
 - If hash differs: atomically swaps file, then runs `routing.sh --no-update`
 - If download fails: exits 0 (existing routes remain intact); checks for missing VPN server host
   route and rebuilds if absent (carrier-change recovery)
 
-Logs to `/etc/splitgate/logs/vpn-gateway.log` (tag `[vpn-routes]`).
+Logs to `/etc/splitgate/logs/install.log` (tag `[vpn-routes]`).
 
 ```bash
 ssh pi4 "sudo /etc/splitgate/update-vpn-routes"
-ssh pi4 "sudo grep vpn-routes /etc/splitgate/logs/vpn-gateway.log | tail -10"
+ssh pi4 "sudo grep vpn-routes /etc/splitgate/logs/install.log | tail -10"
 ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 ```
 
@@ -551,13 +563,26 @@ ssh pi4 "sudo cat /etc/cron.d/vpn-routes"
 
 ### watch-routes.py (deployed to /etc/splitgate/watch-routes.py)
 
-**Synopsis:** `sudo python3 /etc/splitgate/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn]`
+**Synopsis:** `sudo python3 /etc/splitgate/watch-routes.py [--src IP] [--no-dns] [--tag {VPN,ISP,both}] [--no-asn] [--daemon]`
 
 Real-time iptables log enricher. Spawns `journalctl -f -k --no-pager -o short-iso` and
 parses `[VPN]`/`[ISP]` lines as they arrive. Resolves destination IPs via cached rDNS lookups
 (in-memory cache, 2-second timeout). Lines for new destination IPs are buffered until the ASN lookup
 completes (typically 1–3 s), so every printed line carries ` | {org}`. Repeated IPs print immediately
 from cache. Stalled lookups flush after 6 seconds.
+
+In `--daemon` mode a connection status field (✓/✗) is added to each line after the `[TAG]`:
+- `✓` = ESTABLISHED or TIME_WAIT found in `/proc/net/nf_conntrack` after a 3-second delay
+- `✗` = not found in conntrack (UDP connections always show `✗`)
+
+Output format in daemon mode:
+```
+2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+```
+
+Log files: `/etc/splitgate/logs/watch-YYYY-MM-DD.log`. A new dated file is opened at midnight.
+Files older than 14 days are deleted by the `logrotate-vpn-gateway` postrotate hook.
 
 Requires Python 3 (stdlib only — no pip dependencies).
 
@@ -566,14 +591,58 @@ Requires Python 3 (stdlib only — no pip dependencies).
 | `--src IP` | Show only entries where SRC matches this IP address |
 | `--no-dns` | Skip reverse DNS lookups; show raw destination IPs |
 | `--tag VPN\|ISP\|both` | Filter by routing tag (default: both) |
-| `--no-asn` | Disable background ASN/org enrichment |
+| `--no-asn` | Disable background ASN/org enrichment. In daemon mode, status field omitted |
+| `--daemon` | Write to dated log file `/etc/splitgate/logs/watch-YYYY-MM-DD.log` instead of stdout. Used by `splitgate-watch.service` |
 
 ```bash
 sudo python3 /etc/splitgate/watch-routes.py
 sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN
 sudo python3 /etc/splitgate/watch-routes.py --no-dns
 sudo python3 /etc/splitgate/watch-routes.py --tag ISP --no-dns --no-asn
+# Start as daemon (normally done by systemd, but can run manually):
+sudo python3 /etc/splitgate/watch-routes.py --daemon
 ```
+
+**Useful grep patterns:**
+```bash
+# ISP routes that failed to establish (may need VPN forcing)
+grep "[ISP] ✗" /etc/splitgate/logs/watch-$(date +%F).log
+
+# All traffic from a specific device
+grep "192.168.1.50" /etc/splitgate/logs/watch-$(date +%F).log
+```
+
+---
+
+### splitgate-watch.service
+
+**Location:** `/etc/systemd/system/splitgate-watch.service`
+
+Runs `watch-routes.py --daemon` as a persistent background service at boot. Restarts automatically on failure.
+
+| Command | What it does |
+|---------|-------------|
+| `systemctl status splitgate-watch` | Show service status and recent log entries |
+| `systemctl start splitgate-watch` | Start the daemon |
+| `systemctl stop splitgate-watch` | Stop the daemon |
+| `systemctl restart splitgate-watch` | Restart (e.g. after updating watch-routes.py) |
+| `systemctl is-enabled splitgate-watch` | Check if enabled at boot |
+
+```bash
+# Check service status
+ssh pi4 "systemctl status splitgate-watch"
+
+# View connection logs
+ssh pi4 "tail -f /etc/splitgate/logs/watch-$(date +%F).log"
+
+# View daemon errors (startup failures, Python exceptions)
+ssh pi4 "cat /etc/splitgate/logs/watch-error.log"
+
+# Verify autostart
+ssh pi4 "systemctl is-enabled splitgate-watch"   # expect: enabled
+```
+
+Deployed by `deploy.sh` Stage 28. `vpn-rollback.sh` stops and disables the service as part of rollback.
 
 ---
 
@@ -714,6 +783,7 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"
 | 10 | Splitgate Ergonomics | Consolidated RPi files under `/etc/splitgate/`, added `splitgate` dispatcher CLI, log rotation | [.planning/phases/10-splitgate-ergonomics/](../.planning/phases/10-splitgate-ergonomics/) |
 | 11 | README Documentation Overhaul | Trim README to 3 quick-start sections; all technical detail in docs/REFERENCE.md | [.planning/phases/11-readme-documentation/](../.planning/phases/11-readme-documentation/) |
 | 12 | Buffered ASN Output | Buffer watch-routes.py lines until ASN lookup completes; flush after 6 s on stall | [.planning/phases/12-buffered-asn-output/](../.planning/phases/12-buffered-asn-output/) |
+| 13 | Log Monitoring, Routing Refinement & Daemon | splitgate-watch.service daemon with ✓/✗ conntrack status; install.log rename; ru-list-exclude.txt rename; 11 RU CIDRs added to isp-routes-custom.txt | [.planning/phases/13-log-monitoring-daemon/](../.planning/phases/13-log-monitoring-daemon/) |
 
 ### Quick Tasks
 

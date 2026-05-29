@@ -77,10 +77,10 @@ cp src/configs/isp-routes-custom.txt.example src/configs/isp-routes-custom.txt
 cp src/configs/vpn-routes-custom.txt.example src/configs/vpn-routes-custom.txt
 ```
 
-**Optional — RU list exclusions** (`src/configs/ru-exclude.txt`): CIDRs to strip from the downloaded RU list server-side (use when the RU list incorrectly includes a range you want tunneled). Create from example when needed:
+**Optional — RU list exclusions** (`src/configs/ru-list-exclude.txt`): CIDRs to strip from the downloaded RU list server-side (use when the RU list incorrectly includes a range you want tunneled). Create from example when needed:
 
 ```bash
-cp src/configs/ru-exclude.txt.example src/configs/ru-exclude.txt
+cp src/configs/ru-list-exclude.txt.example src/configs/ru-list-exclude.txt
 ```
 
 All three files are gitignored. Full workflow: [docs/REFERENCE.md](docs/REFERENCE.md).
@@ -142,3 +142,53 @@ ssh pi4 "splitgate rollback"
 ```
 
 [Full CLI reference, verify routing, troubleshooting →](docs/REFERENCE.md)
+
+---
+
+## Route Monitoring Daemon
+
+`splitgate-watch.service` runs `watch-routes.py --daemon` as a persistent systemd service, writing
+connection logs to `/etc/splitgate/logs/watch-YYYY-MM-DD.log` (a new file each day, 14-day rotation).
+Deployed by `deploy.sh` Stage 28.
+
+```bash
+# Service control
+ssh pi4 "systemctl status splitgate-watch"
+ssh pi4 "sudo systemctl restart splitgate-watch"
+
+# Check today's log
+ssh pi4 "tail -f /etc/splitgate/logs/watch-$(date +%F).log"
+
+# Find ISP routes that failed to connect (✗ = not found in conntrack)
+ssh pi4 "grep '[ISP] ✗' /etc/splitgate/logs/watch-$(date +%F).log"
+```
+
+Each log line shows routing tag, connection status, source/destination, protocol:port, and org:
+
+```
+2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+```
+
+`✓` = connection found in conntrack (ESTABLISHED/TIME_WAIT); `✗` = not found (UDP connections always show `✗`).
+
+**Tuning workflow** — if `[ISP] ✗` lines point to RU CIDRs going via ISP that actually should go via VPN, uncomment the candidate block in `src/configs/vpn-routes-custom.txt` and re-run `routing.sh`.
+
+---
+
+## Log Files
+
+| File | Location on RPi | Purpose |
+|------|-----------------|---------|
+| `install.log` | `/etc/splitgate/logs/install.log` | Output from `routing.sh` and `update-vpn-routes` — download source, excluded CIDRs, route counts |
+| `watch-YYYY-MM-DD.log` | `/etc/splitgate/logs/watch-2026-05-29.log` | Daily connection log written by `splitgate-watch.service` in daemon mode |
+| `watch-error.log` | `/etc/splitgate/logs/watch-error.log` | stderr from `watch-routes.py --daemon` (startup errors, Python exceptions) |
+
+```bash
+# View install/routing log
+ssh pi4 "sudo tail -20 /etc/splitgate/logs/install.log"
+ssh pi4 "sudo grep vpn-routes /etc/splitgate/logs/install.log | tail -10"
+
+# View today's watch log
+ssh pi4 "sudo tail -f /etc/splitgate/logs/watch-$(date +%F).log"
+```
