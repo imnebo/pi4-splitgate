@@ -99,8 +99,8 @@ for arg in "$@"; do
     esac
 done
 # kernel log call — return canned VPN+ISP entries
-printf 'May 23 10:00:00 pi4 kernel: [VPN] IN=eth0 OUT=awg0 SRC=192.168.1.100 DST=8.8.8.8 PROTO=TCP DPT=443\n'
-printf 'May 23 10:00:01 pi4 kernel: [ISP] IN=eth0 OUT=eth1 SRC=192.168.1.100 DST=1.1.1.1 PROTO=UDP DPT=53\n'
+printf 'May 23 10:00:00 pi4 kernel: [VPN] IN=eth0 OUT=awg0 SRC=10.0.0.100 DST=8.8.8.8 PROTO=TCP DPT=443\n'
+printf 'May 23 10:00:01 pi4 kernel: [ISP] IN=eth0 OUT=eth1 SRC=10.0.0.100 DST=1.1.1.1 PROTO=UDP DPT=53\n'
 JEOF
     chmod +x "${TMPDIR}/journalctl"
 

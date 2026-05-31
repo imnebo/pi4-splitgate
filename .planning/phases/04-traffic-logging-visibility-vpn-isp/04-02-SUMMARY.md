@@ -60,7 +60,7 @@ completed: 2026-05-21
 - **Files modified:** 2
 
 ## Accomplishments
-- Created `configs/dnsmasq.conf` with all required directives: interface=eth0, no-resolv, server=1.1.1.1, domain-needed, bogus-priv, log-queries, log-facility=daemon; includes manual Keenetic DHCP step comment (192.168.1.254)
+- Created `configs/dnsmasq.conf` with all required directives: interface=eth0, no-resolv, server=1.1.1.1, domain-needed, bogus-priv, log-queries, log-facility=daemon; includes manual Keenetic DHCP step comment (10.0.0.254)
 - Created `scripts/vpn-status.sh` as executable bash script: set -euo pipefail, source /etc/vpn-gateway.env, --filter/--device/--last arg parsing, journalctl kernel query for [VPN]/[ISP] entries, dnsmasq log correlation, rDNS fallback via host, formatted TIMESTAMP/SRC-IP/DST-IP/DOMAIN/PATH table
 - Security mitigations applied per threat model: --filter uses grep -F (fixed-string), --device uses string equality — no values passed to eval or shell execution
 
@@ -77,7 +77,7 @@ Each task was committed atomically:
 - `scripts/vpn-status.sh` — operator query tool; reads journalctl for iptables [VPN]/[ISP] LOG entries; correlates with dnsmasq query log for domain names; supports --filter, --device, --last flags
 
 ## Decisions Made
-- Used `interface=eth0` instead of `listen-address=192.168.1.254` — more portable per D-09 discretion
+- Used `interface=eth0` instead of `listen-address=10.0.0.254` — more portable per D-09 discretion
 - Pre-fetched dnsmasq journald log once (`--since "10 minutes ago"`) and grep in-memory per entry — avoids one journalctl subprocess per connection line, more efficient
 - Domain correlation searches for dnsmasq "reply <hostname> is <dst_ip>" lines — the most direct and reliable match available in dnsmasq's log format
 - `--filter` uses `grep -qiF` (fixed-string, case-insensitive) — satisfies T-04-07 injection threat mitigation
@@ -90,7 +90,7 @@ None — plan executed exactly as written. Threat model T-04-07 mitigation (fixe
 None.
 
 ## User Setup Required
-None — no external service configuration required. Manual Keenetic DHCP step (set DNS to 192.168.1.254) is documented in configs/dnsmasq.conf comment header and will be in deploy docs (Plan 04-03).
+None — no external service configuration required. Manual Keenetic DHCP step (set DNS to 10.0.0.254) is documented in configs/dnsmasq.conf comment header and will be in deploy docs (Plan 04-03).
 
 ## Next Phase Readiness
 - `configs/dnsmasq.conf` ready for deploy.sh Phase 4 stage (Plan 04-03)

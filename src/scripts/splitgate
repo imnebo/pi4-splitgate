@@ -32,7 +32,7 @@ case "$CMD" in
       echo "Examples:"
       echo "  splitgate status"
       echo "  splitgate status --via=vpn"
-      echo "  splitgate status --device=192.168.1.50 --filter=youtube"
+      echo "  splitgate status --device=10.0.0.50 --filter=youtube"
       echo "  splitgate status --summary --via=isp"
       exit 0
     fi
@@ -51,7 +51,7 @@ case "$CMD" in
       echo ""
       echo "Examples:"
       echo "  splitgate watch"
-      echo "  splitgate watch --src 192.168.1.50"
+      echo "  splitgate watch --src 10.0.0.50"
       echo "  splitgate watch --tag VPN --no-dns"
       exit 0
     fi

@@ -42,8 +42,8 @@
 ### Verify
 
 - [ ] **VRFY-01**: `ip route get 8.8.8.8` → dev awg0 (foreign traffic via VPN)
-- [ ] **VRFY-02**: `ip route get 77.88.8.8` → via 192.168.1.1 (RU traffic via ISP)
-- [ ] **VRFY-03**: `ip route get YOUR_VPN_SERVER_IP` → via 192.168.1.1 (VPN server via ISP)
+- [ ] **VRFY-02**: `ip route get 77.88.8.8` → via 10.0.0.1 (RU traffic via ISP)
+- [ ] **VRFY-03**: `ip route get YOUR_VPN_SERVER_IP` → via 10.0.0.1 (VPN server via ISP)
 - [ ] **VRFY-04**: `curl --interface awg0 https://ifconfig.me` returns VPN server IP
 
 ## v2 Requirements

@@ -8,10 +8,10 @@
 # Deployed path: /etc/splitgate/vpn-status.sh (chmod +x)
 # Run as:        sudo vpn-status.sh
 #                sudo vpn-status.sh --filter=steam
-#                sudo vpn-status.sh --device=192.168.1.50
-#                sudo vpn-status.sh --last=100 --filter=google --device=192.168.1.100
+#                sudo vpn-status.sh --device=10.0.0.50
+#                sudo vpn-status.sh --last=100 --filter=google --device=10.0.0.100
 #                sudo vpn-status.sh --summary
-#                sudo vpn-status.sh --summary --device=192.168.1.50 --via=vpn
+#                sudo vpn-status.sh --summary --device=10.0.0.50 --via=vpn
 #
 # Decisions honored: D-11 (deployed to /etc/splitgate/vpn-status.sh, run as sudo),
 #   D-12 (default 50 entries; columns: timestamp, src-ip, dst-ip, domain, VPN/ISP),

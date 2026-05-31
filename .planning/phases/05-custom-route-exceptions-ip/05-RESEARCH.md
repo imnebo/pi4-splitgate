@@ -107,7 +107,7 @@ macOS (developer)
     │  └─ Stage 21 (existing): routing.sh --no-update
     │
     ▼ SSH/SCP
-RPi (192.168.1.254)
+RPi (10.0.0.254)
     │
     │  /etc/routing.sh (extended)
     │  ├─ Stage 1: download → /etc/white-list.txt  (renamed from vpn-ru-subnets.txt)
@@ -117,8 +117,8 @@ RPi (192.168.1.254)
     │  └─ Stage 6: ip route add default dev awg0
     │
     │  Linux kernel routing table (main)
-    │  ├─ <RU CIDRs>        via 192.168.1.1  (eth0 → ISP)
-    │  ├─ <exception CIDRs> via 192.168.1.1  (eth0 → ISP)
+    │  ├─ <RU CIDRs>        via 10.0.0.1  (eth0 → ISP)
+    │  ├─ <exception CIDRs> via 10.0.0.1  (eth0 → ISP)
     │  └─ default           dev awg0         (VPN)
     │
     │  Traffic decision: longest-prefix match

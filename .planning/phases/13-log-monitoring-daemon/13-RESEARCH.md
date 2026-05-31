@@ -14,7 +14,7 @@
 - **D-01**: Add 11 specific /24 RU CIDRs to `isp-routes-custom.txt` (Selectel, MIRAN/Keenetic captive portals, RU-JSCIOT, SonicDuo, SOVAM, MegaFon, Raiffeisenbank, VimpelCom, cloud.example.com/RU)
 - **D-02**: Add commented non-RU candidate block to `vpn-routes-custom.txt` (Cherry Servers LT, Google PoPs, Cloudflare, Amazon CloudFront hel51, Amazon EC2 ap-se-1, Akamai NL/US, Azure EU) — user uncomments when a service fails
 - **D-03**: Connection status via `/proc/net/nf_conntrack` (plain file read, no subprocess, no pip deps); STATUS_DELAY=3s; DEDUP_TTL=30s; ✓=ESTABLISHED or TIME_WAIT found, ✗=otherwise; UDP ✗ is acceptable/expected
-- **D-04**: Output format: `2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU` — one line after STATUS_DELAY; status always on
+- **D-04**: Output format: `2026-05-29T10:14:00 [ISP] ✓ 10.0.0.237 → yandex.ru TCP:443 | TELETECH, RU` — one line after STATUS_DELAY; status always on
 - **D-05**: `--daemon` flag — without it: stdout (existing interactive behavior, unchanged); with it: write to dated log file, no stdout
 - **D-06**: Log path `/etc/splitgate/logs/watch-YYYY-MM-DD.log`; Python manages file rotation (open new file at midnight by checking date.today() on each write); LOG_DIR constant; cleanup via `find /etc/splitgate/logs -name "watch-*.log" -mtime +14 -delete` in logrotate postrotate
 - **D-07**: Rename `vpn-gateway.log` → `install.log` in routing.sh L46, update-vpn-routes L25, vpn-rollback.sh L34, logrotate-vpn-gateway L2, deploy.sh summary L497
@@ -142,7 +142,7 @@ Each line in `/proc/net/nf_conntrack` follows this exact layout:
 
 ```
 tcp 6 43184 ESTABLISHED src=192.168.2.5 dst=10.25.39.80 sport=5646 dport=443 src=10.25.39.80 dst=192.168.2.5 sport=443 dport=5646 [ASSURED] mark=0 use=1
-udp 17 3 src=192.168.1.237 dst=8.8.8.8 sport=54321 dport=53 src=8.8.8.8 dst=192.168.1.237 sport=53 dport=54321 [UNREPLIED] mark=0 use=1
+udp 17 3 src=10.0.0.237 dst=8.8.8.8 sport=54321 dport=53 src=8.8.8.8 dst=10.0.0.237 sport=53 dport=54321 [UNREPLIED] mark=0 use=1
 ```
 
 Key layout facts: [CITED: https://fedoramagazine.org/network-address-translation-part-2-the-conntrack-tool/]

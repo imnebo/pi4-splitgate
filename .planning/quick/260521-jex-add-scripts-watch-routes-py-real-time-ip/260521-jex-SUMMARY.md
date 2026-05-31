@@ -39,8 +39,8 @@ Real-time iptables log enricher — parses `[VPN]`/`[ISP]` journalctl lines with
 `scripts/watch-routes.py` spawns `journalctl -f -k --no-pager -o short-iso`, scans each line with a compiled regex for `[VPN]`/`[ISP]` LOG prefixes emitted by `routing.sh` Stage 7b, then prints enriched lines:
 
 ```
-2026-05-21T11:36:21 [VPN] 192.168.1.175 → 17.248.209.64 (courier.push.apple.com) TCP:443
-2026-05-21T11:37:41 [ISP] 192.168.1.175 → 142.250.154.157 (lga25s80-in-f13.1e100.net) TCP:443
+2026-05-21T11:36:21 [VPN] 10.0.0.175 → 17.248.209.64 (courier.push.apple.com) TCP:443
+2026-05-21T11:37:41 [ISP] 10.0.0.175 → 142.250.154.157 (lga25s80-in-f13.1e100.net) TCP:443
 ```
 
 Key design points:

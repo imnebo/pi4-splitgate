@@ -17,14 +17,14 @@ The RPi acts as the default gateway for all LAN devices. Traffic is split into t
 ```
 Internet
   ↓
-Router (192.168.1.1) — ISP uplink
+Router (10.0.0.1) — ISP uplink
   ↓ eth0
-RPi4 (192.168.1.254) — VPN gateway
+RPi4 (10.0.0.254) — VPN gateway
   ↓
-LAN devices (default gateway = 192.168.1.254 via router DHCP)
+LAN devices (default gateway = 10.0.0.254 via router DHCP)
 
 Non-RU → awg0 → AmneziaWG VPN (endpoint: <VPN_SERVER_IP>:<port>)
-RU CIDRs → eth0 → ISP direct (via 192.168.1.1)
+RU CIDRs → eth0 → ISP direct (via 10.0.0.1)
 ```
 
 ---
@@ -37,7 +37,7 @@ Add to `~/.ssh/config` on your Mac:
 
 ```
 Host pi4
-    HostName 192.168.1.254
+    HostName 10.0.0.254
     User ar
     IdentityFile ~/.ssh/id_ed25519
 ```
@@ -59,8 +59,8 @@ cp .env.secrets.example .env.secrets
 
 ```
 SSH_HOST="pi4"              # SSH alias for the RPi (from ~/.ssh/config)
-RPI_LAN_IP=192.168.1.254    # RPi LAN IP
-KEENETIC_GW=192.168.1.1     # ISP gateway (your router)
+RPI_LAN_IP=10.0.0.254    # RPi LAN IP
+KEENETIC_GW=10.0.0.1     # ISP gateway (your router)
 VPN_SERVER_IP=<your-server-ip>  # AmneziaWG server IP — set in .env.secrets
 CRON_UPDATE_HOUR=5          # Hour (0–23) for daily RU list refresh
 ```
@@ -89,15 +89,15 @@ All three files are gitignored. Full workflow: [docs/REFERENCE.md](docs/REFERENC
 
 **Gateway** — set RPi as the LAN default gateway:
 
-1. `http://192.168.1.1` → Home network → Segments → Default → IP parameters
-2. Set **Gateway address** to `192.168.1.254` → Save
+1. `http://10.0.0.1` → Home network → Segments → Default → IP parameters
+2. Set **Gateway address** to `10.0.0.254` → Save
 3. LAN devices apply on next DHCP renewal (or disconnect/reconnect Wi-Fi)
 
 **DNS** — required for domain names in `splitgate status`:
 
-1. Home network → Segments → Default → DNS server → set to `192.168.1.254` → Save
+1. Home network → Segments → Default → DNS server → set to `10.0.0.254` → Save
 
-**Rollback**: clear Gateway address in router (set back to `192.168.1.1`).
+**Rollback**: clear Gateway address in router (set back to `10.0.0.1`).
 
 ### 4. Run deploy
 
@@ -135,7 +135,7 @@ ssh pi4 "splitgate status --summary"                        # top-20 orgs by con
 
 # Watch real-time traffic
 ssh pi4 "splitgate watch"
-ssh pi4 "splitgate watch --src 192.168.1.x --tag VPN"
+ssh pi4 "splitgate watch --src 10.0.0.x --tag VPN"
 
 # Rollback
 ssh pi4 "splitgate rollback"
@@ -166,8 +166,8 @@ ssh pi4 "grep '[ISP] ✗' /etc/splitgate/logs/watch-$(date +%F).log"
 Each log line shows routing tag, connection status, source/destination, protocol:port, and org:
 
 ```
-2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
-2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+2026-05-29T10:14:00 [ISP] ✓ 10.0.0.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 10.0.0.237 → github.com TCP:443 | FASTLY, US
 ```
 
 `✓` = connection found in conntrack (ESTABLISHED/TIME_WAIT); `✗` = not found (UDP connections always show `✗`).

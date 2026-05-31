@@ -11,11 +11,11 @@ Source is `.env` in this repo. All except `SSH_HOST` are deployed to `/etc/split
 | Variable | Value | Description |
 |----------|-------|-------------|
 | `SSH_HOST` | `pi4` | SSH alias for the RPi — used by `deploy.sh` on macOS only; not deployed to RPi |
-| `RPI_LAN_IP` | `192.168.1.254` | RPi LAN IP address |
-| `KEENETIC_GW` | `192.168.1.1` | ISP gateway (your router) |
+| `RPI_LAN_IP` | `10.0.0.254` | RPi LAN IP address |
+| `KEENETIC_GW` | `10.0.0.1` | ISP gateway (your router) |
 | `VPN_SERVER_IP` | *(in `.env.secrets`)* | AmneziaWG server endpoint IP — kept secret, not committed |
 | `VPN_IFACE` | `awg0` | VPN tunnel interface name |
-| `LAN_SUBNET` | `192.168.1.0/24` | Local LAN subnet |
+| `LAN_SUBNET` | `10.0.0.0/24` | Local LAN subnet |
 | `RU_SUBNET_URL` | `https://russia.iplist.opencck.org/?format=text&data=cidr4` | RU CIDR list source |
 | `CRON_UPDATE_HOUR` | `5` | Hour (0-23) for daily subnet refresh cron |
 
@@ -59,11 +59,11 @@ ssh pi4 "ip route get 8.8.8.8"
 
 # 3. Russian IP (77.88.8.8 — Yandex) must route via ISP
 ssh pi4 "ip route get 77.88.8.8"
-# Expected output contains: via 192.168.1.1
+# Expected output contains: via 10.0.0.1
 
 # 4. VPN server IP must route via ISP (loop prevention)
 ssh pi4 "ip route get <VPN_SERVER_IP>"
-# Expected output contains: via 192.168.1.1
+# Expected output contains: via 10.0.0.1
 ```
 
 ### iptables LOG rules check
@@ -86,12 +86,12 @@ Example output:
 ```
 TIMESTAMP            SRC-IP             DST-IP             DOMAIN                                   PATH
 -------------------- ------------------ ------------------ ---------------------------------------- ----
-May 23 11:36:21      192.168.1.175      17.248.209.64      apple.com                                VPN
-May 23 11:36:22      192.168.1.175      77.88.8.8          yandex.ru                                ISP
-May 23 11:36:23      192.168.1.100      104.64.0.0         store.steampowered.com                   VPN
+May 23 11:36:21      10.0.0.175      17.248.209.64      apple.com                                VPN
+May 23 11:36:22      10.0.0.175      77.88.8.8          yandex.ru                                ISP
+May 23 11:36:23      10.0.0.100      104.64.0.0         store.steampowered.com                   VPN
 ```
 
-If the DOMAIN column shows raw IPs, set router DNS to `192.168.1.254` (see README → Deploy → Router setup).
+If the DOMAIN column shows raw IPs, set router DNS to `10.0.0.254` (see README → Deploy → Router setup).
 
 ### Autostart checks
 
@@ -121,7 +121,7 @@ Must be run as `sudo` — reads kernel journal and dnsmasq logs.
 ```bash
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh"
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100"
-ssh pi4 "sudo /etc/splitgate/vpn-status.sh --device=192.168.1.50 --filter=steam"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --device=10.0.0.50 --filter=steam"
 
 # Show top-20 orgs by connection count, split by VPN/ISP:
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --summary"
@@ -140,7 +140,7 @@ stalls, the line flushes after 6 seconds. Repeated IPs print immediately from ca
 
 ```bash
 ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py"
-ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN"
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --src 10.0.0.50 --tag VPN"
 ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --no-asn"   # disable org enrichment
 ```
 
@@ -164,7 +164,7 @@ ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 
 ### DNS note
 
-`dnsmasq` on the RPi (`192.168.1.254`) must be set as the DNS server in your router for domain
+`dnsmasq` on the RPi (`10.0.0.254`) must be set as the DNS server in your router for domain
 resolution to work in `vpn-status.sh`. Without it, all queries go directly to the upstream DNS
 resolver, bypassing dnsmasq's query log, and the DOMAIN column will show raw IPs.
 
@@ -239,7 +239,7 @@ Stage 21 SCPs the file to `/etc/splitgate/isp-routes-custom.txt`. `routing.sh` S
 
 ```bash
 ssh pi4 "ip route get <your-exception-ip>"
-# Expected output contains: via 192.168.1.1
+# Expected output contains: via 10.0.0.1
 
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 # Your exception traffic should appear here
@@ -381,7 +381,7 @@ ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 - Removes MASQUERADE iptables rules on `awg0` + `eth0`
 - Removes iptables FORWARD ACCEPT and LOG rules
 - Removes `/etc/cron.d/vpn-routes`
-- Restores default route via `KEENETIC_GW` (`192.168.1.1`)
+- Restores default route via `KEENETIC_GW` (`10.0.0.1`)
 - Removes `/usr/local/bin/splitgate`
 - Removes `/etc/splitgate/` tree entirely — scripts, data files, env
 
@@ -393,10 +393,10 @@ ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 
 ### After rollback
 
-Revert the router DHCP gateway back to `192.168.1.1`:
+Revert the router DHCP gateway back to `10.0.0.1`:
 
-1. `http://192.168.1.1` → Home network → Segments → Default → IP parameters
-2. Clear the Gateway address field (or set to `192.168.1.1`) → Save
+1. `http://10.0.0.1` → Home network → Segments → Default → IP parameters
+2. Clear the Gateway address field (or set to `10.0.0.1`) → Save
 
 ### Re-activate after rollback
 
@@ -483,7 +483,7 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"             # full run with download
 ssh pi4 "sudo /etc/splitgate/routing.sh --no-update" # rebuild without download
 ssh pi4 "ip route show default"     # expect: default dev awg0
 ssh pi4 "ip route get 8.8.8.8"      # expect: dev awg0
-ssh pi4 "ip route get 77.88.8.8"    # expect: via 192.168.1.1
+ssh pi4 "ip route get 77.88.8.8"    # expect: via 10.0.0.1
 ```
 
 ---
@@ -513,9 +513,9 @@ All flags compose freely.
 ```bash
 sudo /etc/splitgate/vpn-status.sh
 sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100
-sudo /etc/splitgate/vpn-status.sh --device=192.168.1.50 --filter=steam
+sudo /etc/splitgate/vpn-status.sh --device=10.0.0.50 --filter=steam
 sudo /etc/splitgate/vpn-status.sh --summary
-sudo /etc/splitgate/vpn-status.sh --summary --device=192.168.1.50 --via=vpn
+sudo /etc/splitgate/vpn-status.sh --summary --device=10.0.0.50 --via=vpn
 sudo /etc/splitgate/vpn-status.sh --last=200   # extend window when output is empty
 ```
 
@@ -529,7 +529,7 @@ No flags. Fully idempotent — safe to re-run.
 
 ```bash
 ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
-ssh pi4 "ip route show default"  # expect: default via 192.168.1.1
+ssh pi4 "ip route show default"  # expect: default via 10.0.0.1
 bash src/deploy.sh               # re-activate after rollback
 ```
 
@@ -577,8 +577,8 @@ In `--daemon` mode a connection status field (✓/✗) is added to each line aft
 
 Output format in daemon mode:
 ```
-2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
-2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+2026-05-29T10:14:00 [ISP] ✓ 10.0.0.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 10.0.0.237 → github.com TCP:443 | FASTLY, US
 ```
 
 Log files: `/etc/splitgate/logs/watch-YYYY-MM-DD.log`. A new dated file is opened at midnight.
@@ -596,7 +596,7 @@ Requires Python 3 (stdlib only — no pip dependencies).
 
 ```bash
 sudo python3 /etc/splitgate/watch-routes.py
-sudo python3 /etc/splitgate/watch-routes.py --src 192.168.1.50 --tag VPN
+sudo python3 /etc/splitgate/watch-routes.py --src 10.0.0.50 --tag VPN
 sudo python3 /etc/splitgate/watch-routes.py --no-dns
 sudo python3 /etc/splitgate/watch-routes.py --tag ISP --no-dns --no-asn
 # Start as daemon (normally done by systemd, but can run manually):
@@ -609,7 +609,7 @@ sudo python3 /etc/splitgate/watch-routes.py --daemon
 grep "[ISP] ✗" /etc/splitgate/logs/watch-$(date +%F).log
 
 # All traffic from a specific device
-grep "192.168.1.50" /etc/splitgate/logs/watch-$(date +%F).log
+grep "10.0.0.50" /etc/splitgate/logs/watch-$(date +%F).log
 ```
 
 ---
@@ -693,9 +693,9 @@ Fix: Re-run `sudo /etc/splitgate/routing.sh` — Stage 7b adds LOG rules before 
 
 **Router web UI / app becomes inaccessible from LAN devices**
 
-Symptom: Cannot reach `http://192.168.1.1` from LAN devices after RPi is configured as gateway.
+Symptom: Cannot reach `http://10.0.0.1` from LAN devices after RPi is configured as gateway.
 
-Cause: An unconstrained MASQUERADE rule on `eth0` rewrites source IPs for all outbound traffic — including intra-LAN traffic to `192.168.1.1`. Router sees all requests from `192.168.1.254` and blocks them.
+Cause: An unconstrained MASQUERADE rule on `eth0` rewrites source IPs for all outbound traffic — including intra-LAN traffic to `10.0.0.1`. Router sees all requests from `10.0.0.254` and blocks them.
 
 Fix: `routing.sh` Stage 7 uses `! -d LAN_SUBNET` in the eth0 MASQUERADE rule. Re-run `sudo /etc/splitgate/routing.sh` to restore the correct rule.
 
@@ -734,7 +734,7 @@ Cause A: dnsmasq is not configured as the DNS server in your router — queries 
 
 Cause B: LAN device has not renewed its DHCP lease since the router gateway was changed.
 
-Fix: In your router web UI: set Gateway address to `192.168.1.254` and DNS server to `192.168.1.254`. Then renew the DHCP lease on the LAN device (disconnect/reconnect Wi-Fi, or `ipconfig /renew` on Windows).
+Fix: In your router web UI: set Gateway address to `10.0.0.254` and DNS server to `10.0.0.254`. Then renew the DHCP lease on the LAN device (disconnect/reconnect Wi-Fi, or `ipconfig /renew` on Windows).
 
 ---
 
@@ -744,7 +744,7 @@ Symptom: DOMAIN column shows IP addresses instead of domain names.
 
 Cause: dnsmasq is not the DNS server for LAN devices — DNS queries bypass dnsmasq's query log.
 
-Fix: Set your router DNS server to `192.168.1.254` (see README → Deploy → Router setup).
+Fix: Set your router DNS server to `10.0.0.254` (see README → Deploy → Router setup).
 
 ---
 
@@ -752,7 +752,7 @@ Fix: Set your router DNS server to `192.168.1.254` (see README → Deploy → Ro
 
 Symptom: VPN routing breaks after the router reboots or eth0 link drops. `ip route show | wc -l` drops to ~2. `ip route get 8.8.8.8` no longer shows `dev awg0`.
 
-Cause: When the router reboots, eth0 link drops. NetworkManager flushes all eth0 routes on the link-down event — including all ~1360 RU CIDR routes and the VPN server host route. When eth0 comes back up, NM only restores the local link route. Without the VPN server host route (`<VPN_SERVER_IP>/32 via 192.168.1.1`), traffic to the VPN endpoint resolves via `awg0`, creating a routing loop.
+Cause: When the router reboots, eth0 link drops. NetworkManager flushes all eth0 routes on the link-down event — including all ~1360 RU CIDR routes and the VPN server host route. When eth0 comes back up, NM only restores the local link route. Without the VPN server host route (`<VPN_SERVER_IP>/32 via 10.0.0.1`), traffic to the VPN endpoint resolves via `awg0`, creating a routing loop.
 
 Fix: `deploy.sh` Stage 23 deploys `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — an NM dispatcher script that restores routes by running `routing.sh --no-update` when `eth0 up` is detected.
 

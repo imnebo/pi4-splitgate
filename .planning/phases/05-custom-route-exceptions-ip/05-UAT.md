@@ -18,7 +18,7 @@ expected: |
   Stage 9 summary shows "White list:" count, not "Subnets:". No errors.
 result: blocked
 blocked_by: server
-reason: "SSH to pi4 (192.168.1.254:22) timed out — deploy.sh failed at Stage 3. RPi responds to ping but SSH is unavailable."
+reason: "SSH to pi4 (10.0.0.254:22) timed out — deploy.sh failed at Stage 3. RPi responds to ping but SSH is unavailable."
 
 ### 2. Stage 5b: absent exception file skips silently
 expected: |

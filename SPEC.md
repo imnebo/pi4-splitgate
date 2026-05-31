@@ -14,7 +14,7 @@ Raspberry Pi 4 должен стать VPN-шлюзом для домашней 
 ```
 Интернет
    ↓
-Keenetic (192.168.1.1, PPPoE → провайдер Small Telecom)
+Keenetic (10.0.0.1 → провайдер `Инсис` статич. IP)
    ↓ (eth0)
 RPi4 (IP уточнить у пользователя)
    ↓
@@ -27,11 +27,11 @@ RPi4 (IP уточнить у пользователя)
 
 | Переменная | Значение |
 |---|---|
-| `KEENETIC_GW` | `192.168.1.1` |
+| `KEENETIC_GW` | `10.0.0.1` |
 | `VPN_SERVER_IP` | `&lt;VPN_SERVER_IP&gt;` |
 | `VPN_IFACE` | `awg0` |
 | `RPI_LAN_IP` | уточнить у пользователя |
-| `LAN_SUBNET` | `192.168.1.0/24` (уточнить) |
+| `LAN_SUBNET` | `10.0.0.0/24` (уточнить) |
 
 ---
 
@@ -86,18 +86,18 @@ sudo sysctl -p
 
 4. **Добавить маршрут до VPN-сервера через провайдера** (критично — иначе петля):
    ```bash
-   ip route add &lt;VPN_SERVER_IP&gt;/32 via 192.168.1.1
+   ip route add &lt;VPN_SERVER_IP&gt;/32 via 10.0.0.1
    ```
 
 5. **Добавить маршруты для RU-подсетей через провайдера:**
    ```bash
    # для каждой подсети из списка:
-   ip route add <CIDR> via 192.168.1.1
+   ip route add <CIDR> via 10.0.0.1
    ```
 
 6. **Добавить маршрут для локальной сети:**
    ```bash
-   ip route add 192.168.1.0/24 dev eth0
+   ip route add 10.0.0.0/24 dev eth0
    ```
 
 Скрипт сделать идемпотентным — повторный запуск не должен падать с ошибкой.
@@ -200,8 +200,8 @@ sudo awg-quick down awg0
 3. Сбросить все маршруты и восстановить дефолтный через Keenetic:
 ```bash
 ip route flush table main
-ip route add default via 192.168.1.1
-ip route add 192.168.1.0/24 dev eth0
+ip route add default via 10.0.0.1
+ip route add 10.0.0.0/24 dev eth0
 ```
 
 4. Удалить правила NAT:
@@ -218,8 +218,8 @@ sudo rm -f /etc/cron.daily/update-vpn-routes
 6. Вывести сообщение:
 ```
 Rollback complete. RPi is now a regular host.
-Default gateway: 192.168.1.1
-Remember to update DHCP gateway on Keenetic back to 192.168.1.1.
+Default gateway: 10.0.0.1
+Remember to update DHCP gateway on Keenetic back to 10.0.0.1.
 ```
 
 Скрипт НЕ удаляет:
@@ -235,10 +235,10 @@ Remember to update DHCP gateway on Keenetic back to 192.168.1.1.
 # 1. Дефолтный маршрут — должен идти через awg0
 ip route show default
 
-# 2. Маршрут до VPN-сервера — должен идти через 192.168.1.1
+# 2. Маршрут до VPN-сервера — должен идти через 10.0.0.1
 ip route get &lt;VPN_SERVER_IP&gt;
 
-# 3. Маршрут до RU-ресурса (например Яндекс) — должен идти через eth0/192.168.1.1
+# 3. Маршрут до RU-ресурса (например Яндекс) — должен идти через eth0/10.0.0.1
 ip route get 77.88.8.8
 
 # 4. Маршрут до зарубежного ресурса — должен идти через awg0
@@ -253,7 +253,7 @@ curl --interface awg0 https://ifconfig.me
 ## Что НЕ трогать
 
 - Конфигурацию Keenetic — только DHCP настройка шлюза (отдельно, вручную пользователем)
-- OpenVPN (tun0) — существующий корпоративный туннель Promwad не трогать
+- OpenVPN (tun0)
 - Docker-контейнеры если есть
 
 ---
@@ -262,15 +262,15 @@ curl --interface awg0 https://ifconfig.me
 
 Выполнять **после** того как RPi полностью настроен и проверен.
 
-1. Открыть веб-интерфейс Keenetic: http://192.168.1.1
+1. Открыть веб-интерфейс Keenetic: http://10.0.0.1
 2. Левое меню → **Мои сети и Wi-Fi** → вкладка **Default**
 3. Прокрутить до раздела **Параметры IP**
 4. Нажать **Скрыть настройки DHCP** (разворачивает поля)
 5. Найти поле **Адрес шлюза** (сейчас пустое)
-6. Вписать IP RPi (например `192.168.1.XX`)
+6. Вписать IP RPi (например `10.0.0.XX`)
 7. Нажать **Сохранить**
 
-После сохранения все устройства при следующем обновлении DHCP-аренды получат RPi как шлюз. Для мгновенного применения — переподключить Wi-Fi или сделать `ipconfig /release && ipconfig /renew` на Windows.
+После сохранения все устройства при следующем обновлении DHCP-аренды получат RPi как шлюз.
 
 **Откат:** то же самое, но поле "Адрес шлюза" очистить → Сохранить.
 
@@ -294,8 +294,8 @@ curl https://ifconfig.me   # должен вернуть IP VPN-сервера
 sudo systemctl stop vpn-routing
 sudo systemctl stop awg-quick@awg0
 sudo ip route flush table main
-sudo ip route add default via 192.168.1.1
-sudo ip route add 192.168.1.0/24 dev eth0
+sudo ip route add default via 10.0.0.1
+sudo ip route add 10.0.0.0/24 dev eth0
 ```
 
 Трафик пойдёт напрямую через Keenetic.
@@ -328,7 +328,7 @@ sudo systemctl restart vpn-routing
 sudo /etc/vpn-rollback.sh
 ```
 
-После этого вернуть DHCP на Keenetic: шлюз = 192.168.1.1.
+После этого вернуть DHCP на Keenetic: шлюз = 10.0.0.1.
 
 ### Логи
 

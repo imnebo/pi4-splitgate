@@ -90,8 +90,8 @@
 **Success Criteria:**
 
 1. `ip route show default` shows dev awg0
-2. `ip route get YOUR_VPN_SERVER_IP` → via 192.168.1.1 (not awg0)
-3. `ip route get 77.88.8.8` → via 192.168.1.1 (RU → ISP)
+2. `ip route get YOUR_VPN_SERVER_IP` → via 10.0.0.1 (not awg0)
+3. `ip route get 77.88.8.8` → via 10.0.0.1 (RU → ISP)
 4. `ip route get 8.8.8.8` → dev awg0 (foreign → VPN)
 5. LAN device reaches internet through RPi (both VPN and direct paths)
 6. iptables MASQUERADE rules present after reboot
@@ -111,8 +111,8 @@
 - ROLL-01: /etc/vpn-rollback.sh stops services, flushes routes, removes NAT/cron
 - ROLL-02: Rollback preserves awg0.conf, installed packages, routing.sh
 - VRFY-01: ip route get 8.8.8.8 → awg0
-- VRFY-02: ip route get 77.88.8.8 → 192.168.1.1
-- VRFY-03: ip route get YOUR_VPN_SERVER_IP → 192.168.1.1
+- VRFY-02: ip route get 77.88.8.8 → 10.0.0.1
+- VRFY-03: ip route get YOUR_VPN_SERVER_IP → 10.0.0.1
 - VRFY-04: curl --interface awg0 https://ifconfig.me returns VPN IP
 
 **Deliverables:**
@@ -126,7 +126,7 @@
 
 1. After simulated reboot: `systemctl is-active awg-quick@awg0` and `vpn-routing` both `active`
 2. `/etc/cron.d/vpn-routes` is mode 644 root:root and runs `/etc/update-vpn-routes` daily at 5:00
-3. `sudo /etc/vpn-rollback.sh` restores plain-host routing; `ip route show default` → via 192.168.1.1
+3. `sudo /etc/vpn-rollback.sh` restores plain-host routing; `ip route show default` → via 10.0.0.1
 4. All VRFY checks pass before rollback
 
 **Plans:** 3 plans

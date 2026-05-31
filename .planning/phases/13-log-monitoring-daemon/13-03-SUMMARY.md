@@ -38,8 +38,8 @@ Extended `watch-routes.py` with daemon mode, connection status checking, and dai
 
 **Output format:**
 ```
-2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
-2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+2026-05-29T10:14:00 [ISP] ✓ 10.0.0.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 10.0.0.237 → github.com TCP:443 | FASTLY, US
 ```
 
 ## Commits

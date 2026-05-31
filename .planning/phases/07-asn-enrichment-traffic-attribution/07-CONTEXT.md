@@ -33,7 +33,7 @@ Phase ends when: `vpn-status.sh` shows ORG column and `--summary` mode; `watch-r
 ### Output Format
 - **D-06:** `vpn-status.sh` — new `ORG` column added after `DOMAIN`. Column value: `{org} (AS{asn})`, e.g. `Apple Inc. (AS714)`. If lookup fails or IP not in cache and Cymru unreachable: show `-`.
 - **D-07:** `vpn-status.sh --summary` — new flag showing aggregate view: top N orgs ranked by connection count, split by VPN/ISP path. Output format TBD by planner (table with ORG | VPN_COUNT | ISP_COUNT | TOTAL).
-- **D-08:** `watch-routes.py` — append ` | {org}` at end of each output line. Example: `2026-05-21T11:36 [VPN] 192.168.1.175 → 17.248.209.64 (albert.apple.com) TCP:443 | Apple Inc.`. If lookup fails: omit the ` | org` suffix (don't break stream).
+- **D-08:** `watch-routes.py` — append ` | {org}` at end of each output line. Example: `2026-05-21T11:36 [VPN] 10.0.0.175 → 17.248.209.64 (albert.apple.com) TCP:443 | Apple Inc.`. If lookup fails: omit the ` | org` suffix (don't break stream).
 
 ### Python / stdlib Constraint
 - **D-09:** `asn-lookup.py` uses stdlib only — no pip dependencies. Matches existing `watch-routes.py` pattern. Required for RPi where pip may not be available / not desirable.

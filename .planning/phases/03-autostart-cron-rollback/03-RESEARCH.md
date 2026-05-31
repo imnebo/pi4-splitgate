@@ -55,8 +55,8 @@ None — discussion stayed within phase scope.
 | ROLL-01 | `/etc/vpn-rollback.sh` stops services, flushes routes, removes NAT rules and cron | D-08: iptables -D mirror of -A rules; netfilter-persistent save after removal |
 | ROLL-02 | Rollback preserves awg0.conf, installed packages, routing.sh | D-10: rollback only undoes running state; no rm of config or packages |
 | VRFY-01 | `ip route get 8.8.8.8` → dev awg0 | Verified via routing.sh Stage 9 pattern; services must be running |
-| VRFY-02 | `ip route get 77.88.8.8` → via 192.168.1.1 | RU subnet routes survive reboot if vpn-routing.service is enabled |
-| VRFY-03 | `ip route get YOUR_VPN_SERVER_IP` → via 192.168.1.1 | VPN server host route added by routing.sh Stage 4 |
+| VRFY-02 | `ip route get 77.88.8.8` → via 10.0.0.1 | RU subnet routes survive reboot if vpn-routing.service is enabled |
+| VRFY-03 | `ip route get YOUR_VPN_SERVER_IP` → via 10.0.0.1 | VPN server host route added by routing.sh Stage 4 |
 | VRFY-04 | `curl --interface awg0 https://ifconfig.me` returns VPN IP | Requires awg0 interface to be up (awg-quick@awg0) before vpn-routing.service runs |
 
 </phase_requirements>

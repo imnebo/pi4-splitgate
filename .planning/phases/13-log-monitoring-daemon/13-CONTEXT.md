@@ -62,8 +62,8 @@ UDP connections often show `✗` (conntrack entry short-lived) — acceptable/ex
 ### D-04: watch-routes.py — Output Format
 One complete line written after STATUS_DELAY. Format:
 ```
-2026-05-29T10:14:00 [ISP] ✓ 192.168.1.237 → yandex.ru TCP:443 | TELETECH, RU
-2026-05-29T10:14:05 [ISP] ✗ 192.168.1.237 → github.com TCP:443 | FASTLY, US
+2026-05-29T10:14:00 [ISP] ✓ 10.0.0.237 → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ 10.0.0.237 → github.com TCP:443 | FASTLY, US
 ```
 The 3s delay is invisible when reading a file log. It fits within the existing ASN BUFFER_TIMEOUT=6s window.
 Status always on — no flag. The status IS the purpose of daemon mode.

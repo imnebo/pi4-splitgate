@@ -9,13 +9,13 @@
 Add traffic logging and visibility to the RPi VPN gateway:
 
 1. **iptables connection logging** — LOG new connections at the FORWARD chain with `[VPN]` / `[ISP]` prefix tags, so each LAN device connection records its routing decision to syslog
-2. **dnsmasq DNS forwarder** — Install dnsmasq on RPi; LAN devices use 192.168.1.254 as DNS resolver; dnsmasq logs all queries (hostname + source device IP); upstream: Cloudflare 1.1.1.1
+2. **dnsmasq DNS forwarder** — Install dnsmasq on RPi; LAN devices use 10.0.0.254 as DNS resolver; dnsmasq logs all queries (hostname + source device IP); upstream: Cloudflare 1.1.1.1
 3. **vpn-status.sh** — Query script that correlates iptables LOG entries with dnsmasq query log to show last N connections with domain names, VPN/ISP decision, and source device; supports `--filter=<string>` and `--device=<IP>` flags
 4. **Deploy integration** — new deploy.sh stages for dnsmasq config + LOG rules activation
 
 Phase ends when: `vpn-status.sh` on the RPi shows recent LAN device connections with domain names and VPN/ISP routing decisions visible.
 
-**Manual step (not automated):** Keenetic KN-3010 DHCP configuration — set DNS server to 192.168.1.254. Deploy docs must include step-by-step instructions for the KN-3010 web UI.
+**Manual step (not automated):** Keenetic KN-3010 DHCP configuration — set DNS server to 10.0.0.254. Deploy docs must include step-by-step instructions for the KN-3010 web UI.
 
 </domain>
 
@@ -39,7 +39,7 @@ Phase ends when: `vpn-status.sh` on the RPi shows recent LAN device connections 
 - **D-10:** Retention: journald default (`SystemMaxUse=100M`) handles both iptables LOG and dnsmasq query logs. No logrotate config needed.
 
 ### vpn-status.sh Query Script
-- **D-11:** Deployed to `/etc/vpn-status.sh` (chmod +x). Run as: `sudo vpn-status.sh` or `sudo vpn-status.sh --filter=steam --device=192.168.1.50 --last=100`.
+- **D-11:** Deployed to `/etc/vpn-status.sh` (chmod +x). Run as: `sudo vpn-status.sh` or `sudo vpn-status.sh --filter=steam --device=10.0.0.50 --last=100`.
 - **D-12:** Default output: last 50 connections from journald. Columns: timestamp, source device IP, destination IP, destination domain, VPN/ISP decision.
 - **D-13:** Domain resolution for each destination IP — two-step:
   1. Check dnsmasq query log in journald for matching DNS query (same source IP, within ~60s of connection). Use that domain name if found.
@@ -59,7 +59,7 @@ Phase ends when: `vpn-status.sh` on the RPi shows recent LAN device connections 
 
 ### Claude's Discretion
 - Exact `dnsmasq.conf` options beyond interface + upstream + log-queries
-- Whether to use `listen-address=192.168.1.254` or `interface=eth0` (use `interface=eth0` — more portable)
+- Whether to use `listen-address=10.0.0.254` or `interface=eth0` (use `interface=eth0` — more portable)
 - vpn-status.sh: exact journalctl query flags for extracting [VPN]/[ISP] lines and dnsmasq queries
 - Whether rDNS uses `host`, `dig -x`, or `getent hosts` (use `host` — simpler, always available)
 - iptables LOG rule position within FORWARD chain (after ESTABLISHED,RELATED rule to avoid re-logging)
@@ -117,7 +117,7 @@ No ADRs or external specs — requirements fully captured in decisions above.
 ## Specific Ideas
 
 - `--filter=steam` → partial case-insensitive match on domain; user's primary use case is identifying gaming/app traffic routing
-- Keenetic KN-3010 DHCP DNS instruction: navigate to 192.168.1.1 → Home network → Segments → DNS server → set to 192.168.1.254. Include in deploy docs as a manual prerequisite step.
+- Keenetic KN-3010 DHCP DNS instruction: navigate to 10.0.0.1 → Home network → Segments → DNS server → set to 10.0.0.254. Include in deploy docs as a manual prerequisite step.
 - vpn-status.sh output must be readable on a terminal (not a daemon/service — a query tool run manually)
 - Rate limiting protects against streaming or gaming devices generating thousands of connections per minute
 

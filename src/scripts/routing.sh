@@ -27,10 +27,10 @@
 #   T-02-05 — iptables-persistent installed via DEBIAN_FRONTEND=noninteractive apt-get
 #
 # Variables sourced from /etc/splitgate/vpn-gateway.env (deployed by Phase 1):
-#   KEENETIC_GW      — ISP gateway (Keenetic router LAN IP, e.g. 192.168.1.1)
+#   KEENETIC_GW      — ISP gateway (Keenetic router LAN IP, e.g. 10.0.0.1)
 #   VPN_SERVER_IP    — AmneziaWG server IP (from .env.secrets, injected into vpn-gateway.env at deploy)
 #   VPN_IFACE        — VPN tunnel interface (e.g. awg0)
-#   LAN_SUBNET       — Local LAN subnet (e.g. 192.168.1.0/24)
+#   LAN_SUBNET       — Local LAN subnet (e.g. 10.0.0.0/24)
 #   RU_SUBNET_URL    — URL for RU CIDR list (https://russia.iplist.opencck.org/?format=text&data=cidr4)
 
 set -euo pipefail
@@ -248,7 +248,7 @@ else
 fi
 
 # NAT-02: MASQUERADE on eth0 — ISP-bound RU traffic, excluding local LAN.
-# ! -d LAN_SUBNET ensures intra-LAN traffic (e.g. to router at 192.168.1.1) is NOT
+# ! -d LAN_SUBNET ensures intra-LAN traffic (e.g. to router at 10.0.0.1) is NOT
 # masqueraded — router web/app access stays with real device IP, not RPi's IP.
 if iptables -t nat -C POSTROUTING -o eth0 ! -d "${LAN_SUBNET}" -j MASQUERADE 2>/dev/null; then
     log "MASQUERADE on eth0 (! LAN): already present (no change)"

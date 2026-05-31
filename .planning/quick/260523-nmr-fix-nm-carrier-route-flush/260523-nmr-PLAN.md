@@ -26,8 +26,8 @@ Router rebooted → Pi4 `eth0` carrier dropped for 43 seconds → NetworkManager
 did a full interface reconnect cycle (`disconnected → prepare → config → ip-config → activated`).
 On reconnect NM flushed all routes on eth0, removing:
 
-- `YOUR_VPN_SERVER_IP/32 via 192.168.1.1` — VPN server host route (loop prevention)
-- 1359 Russian subnet routes via `192.168.1.1`
+- `YOUR_VPN_SERVER_IP/32 via 10.0.0.1` — VPN server host route (loop prevention)
+- 1359 Russian subnet routes via `10.0.0.1`
 
 Without the VPN server host route, traffic to `YOUR_VPN_SERVER_IP` resolved via
 AmneziaWG's policy table 51820 (`default dev awg0`) → routing loop → VPN
@@ -46,7 +46,7 @@ ssh pi4 sudo /etc/routing.sh
 
 Verify:
 ```bash
-ssh pi4 "ip route get YOUR_VPN_SERVER_IP"   # must show via 192.168.1.1
+ssh pi4 "ip route get YOUR_VPN_SERVER_IP"   # must show via 10.0.0.1
 ssh pi4 "ip route show | wc -l"        # must be ~1363
 ssh pi4 "sudo awg show"                # must show recent handshake
 ```

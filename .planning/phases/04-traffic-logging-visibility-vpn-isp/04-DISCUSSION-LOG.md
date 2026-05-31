@@ -57,7 +57,7 @@
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Keenetic DHCP: DNS = 192.168.1.254 | One config change, all devices automatically use RPi DNS | ✓ |
+| Keenetic DHCP: DNS = 10.0.0.254 | One config change, all devices automatically use RPi DNS | ✓ |
 | Manual per-device DNS setting | Change DNS on each device individually | |
 
 **User's choice:** Keenetic DHCP + KN-3010 (Speedster) instructions required in deploy docs
@@ -65,7 +65,7 @@
 | Option | Description | Selected |
 |--------|-------------|----------|
 | Cloudflare 1.1.1.1 | Fast, privacy-friendly; queries go through VPN | ✓ |
-| Keenetic as upstream (192.168.1.1) | Router DNS; queries stay local/ISP | |
+| Keenetic as upstream (10.0.0.1) | Router DNS; queries stay local/ISP | |
 | Dual: 1.1.1.1 + 8.8.8.8 fallback | Reliable config; both via VPN | |
 
 **User's choice:** Cloudflare 1.1.1.1
@@ -134,7 +134,7 @@
 ## Claude's Discretion
 
 - Exact `dnsmasq.conf` options beyond interface + upstream + log-queries
-- Whether to use `listen-address=192.168.1.254` or `interface=eth0`
+- Whether to use `listen-address=10.0.0.254` or `interface=eth0`
 - vpn-status.sh: exact journalctl query flags for [VPN]/[ISP] extraction + dnsmasq correlation
 - Whether rDNS uses `host`, `dig -x`, or `getent hosts`
 - iptables LOG rule positioning within FORWARD chain

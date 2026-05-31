@@ -133,7 +133,7 @@ Local machine (macOS)
     [7. ssh pi4 "sudo awg-quick up awg0"]  (optional verification step)
          │
          ▼
-RPi 4 (pi4, 192.168.1.254)
+RPi 4 (pi4, 10.0.0.254)
   ├── /etc/amnezia/amneziawg/awg0.conf  (rendered, no placeholders)
   ├── /etc/vpn-gateway.env              (sourced by Phase 2 scripts)
   ├── /usr/bin/awg                      (from amneziawg-tools)

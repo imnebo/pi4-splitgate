@@ -281,7 +281,7 @@ def _pending_watchdog() -> None:
 # ─── Log-line regex ───────────────────────────────────────────────────────────
 # Matches journalctl short-iso lines that contain [VPN] or [ISP] iptables LOG
 # prefixes, e.g.:
-#   2026-05-21T11:36:21+0300 raspberrypi kernel: [VPN] IN=eth0 OUT=awg0 ... SRC=192.168.1.175 DST=17.248.209.64 ... PROTO=TCP ... DPT=443 ...
+#   2026-05-21T11:36:21+0300 raspberrypi kernel: [VPN] IN=eth0 OUT=awg0 ... SRC=10.0.0.175 DST=17.248.209.64 ... PROTO=TCP ... DPT=443 ...
 _LOG_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"  # ISO timestamp prefix (19 chars)
     r"[^\[]*"                                            # anything before the tag

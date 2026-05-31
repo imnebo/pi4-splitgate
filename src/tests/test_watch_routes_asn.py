@@ -30,7 +30,7 @@ _SPEC.loader.exec_module(wr)  # type: ignore[union-attr]
 _SAMPLE_ARGS = dict(
     ts="2026-05-21T11:36:21",
     tag="VPN",
-    src="192.168.1.175",
+    src="10.0.0.175",
     dst="8.8.8.8",
     proto="TCP",
     dpt="443",
@@ -226,7 +226,7 @@ class TestBackwardCompat(unittest.TestCase):
         result = wr.format_line(
             "2026-05-21T11:36:21",
             "VPN",
-            "192.168.1.175",
+            "10.0.0.175",
             "8.8.8.8",
             "TCP",
             "443",
@@ -270,7 +270,7 @@ class TestPendingBuffer(unittest.TestCase):
             wr.lookup_async(dst)
             import time as _time
             entry = (_time.monotonic(), "2026-05-28T12:00:00", "VPN",
-                     "192.168.1.1", dst, "TCP", "443", True)
+                     "10.0.0.1", dst, "TCP", "443", True)
             with wr._pending_lock:
                 wr._pending.setdefault(dst, []).append(entry)
 
@@ -283,7 +283,7 @@ class TestPendingBuffer(unittest.TestCase):
         import time as _time
         dst = "8.8.8.8"
         entry = (_time.monotonic(), "2026-05-28T12:00:00", "VPN",
-                 "192.168.1.1", dst, "TCP", "443", True)
+                 "10.0.0.1", dst, "TCP", "443", True)
         with wr._pending_lock:
             wr._pending[dst] = [entry]
 
@@ -307,7 +307,7 @@ class TestPendingBuffer(unittest.TestCase):
         import time as _time
         dst = "9.9.9.9"
         entry = (_time.monotonic(), "2026-05-28T12:00:00", "ISP",
-                 "192.168.1.1", dst, "TCP", "80", True)
+                 "10.0.0.1", dst, "TCP", "80", True)
         with wr._pending_lock:
             wr._pending[dst] = [entry]
 
@@ -329,12 +329,12 @@ class TestPendingBuffer(unittest.TestCase):
         with wr._asn_lock:
             wr._asn_cache[dst] = None
         entry1 = (_time.monotonic(), "2026-05-28T12:00:00", "VPN",
-                  "192.168.1.1", dst, "TCP", "443", True)
+                  "10.0.0.1", dst, "TCP", "443", True)
         with wr._pending_lock:
             wr._pending[dst] = [entry1]
 
         entry2 = (_time.monotonic(), "2026-05-28T12:00:01", "VPN",
-                  "192.168.1.1", dst, "TCP", "443", True)
+                  "10.0.0.1", dst, "TCP", "443", True)
         # Simulate main() logic for in-flight case
         with wr._asn_lock:
             cached = wr._asn_cache.get(dst, "__missing__")
@@ -351,7 +351,7 @@ class TestPendingBuffer(unittest.TestCase):
         dst = "7.7.7.7"
         old_ts = _time.monotonic() - wr._BUFFER_TIMEOUT - 1.0
         entry = (old_ts, "2026-05-28T12:00:00", "VPN",
-                 "192.168.1.1", dst, "TCP", "443", True)
+                 "10.0.0.1", dst, "TCP", "443", True)
         with wr._pending_lock:
             wr._pending[dst] = [entry]
         with wr._asn_lock:
@@ -383,7 +383,7 @@ class TestPendingBuffer(unittest.TestCase):
         with wr._pending_lock:
             initial_keys = set(wr._pending.keys())
 
-        result = wr.format_line("2026-05-28T12:00:00", "VPN", "192.168.1.1",
+        result = wr.format_line("2026-05-28T12:00:00", "VPN", "10.0.0.1",
                                  "3.3.3.3", "TCP", "443", True, enable_asn=False)
         self.assertIsInstance(result, str)
         self.assertNotIn(" | ", result)
@@ -398,7 +398,7 @@ class TestPendingBuffer(unittest.TestCase):
         with wr._asn_lock:
             wr._asn_cache[dst] = {"asn": "3356", "org": "LEVEL3"}
 
-        result = wr.format_line("2026-05-28T12:00:00", "VPN", "192.168.1.1",
+        result = wr.format_line("2026-05-28T12:00:00", "VPN", "10.0.0.1",
                                  dst, "TCP", "80", True, enable_asn=True)
         self.assertIn("LEVEL3", result)
 

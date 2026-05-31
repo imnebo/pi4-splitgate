@@ -59,7 +59,7 @@ completed: 2026-05-20
 
 - `scripts/vpn-rollback.sh` created — idempotent 8-step rollback verified on live RPi
 - `deploy.sh` extended to TOTAL_STAGES=16 with Stage 16 (SCP rollback script to /etc/vpn-rollback.sh, chmod +x, root:root)
-- Rollback verification passed: `ip route show default` → `via 192.168.1.1`, no VPN MASQUERADE rules, cron removed, both services disabled
+- Rollback verification passed: `ip route show default` → `via 10.0.0.1`, no VPN MASQUERADE rules, cron removed, both services disabled
 - ROLL-02 preserved: awg0.conf (mode 600), /etc/routing.sh, /etc/vpn-ru-subnets.txt, AmneziaWG packages — all intact
 
 ## Task Commits
@@ -82,7 +82,7 @@ None — plan executed exactly as written.
 
 ## Issues Encountered
 
-- After rollback, `sudo awg-quick up awg0` returned "awg0 already exists" — awg0 interface persisted after `systemctl stop awg-quick@awg0` (amneziawg behavior). Routing was correctly restored to ISP (via 192.168.1.1) and services were disabled, so this is a benign observation. Re-enabling via `./deploy.sh` works normally.
+- After rollback, `sudo awg-quick up awg0` returned "awg0 already exists" — awg0 interface persisted after `systemctl stop awg-quick@awg0` (amneziawg behavior). Routing was correctly restored to ISP (via 10.0.0.1) and services were disabled, so this is a benign observation. Re-enabling via `./deploy.sh` works normally.
 
 ## Next Phase Readiness
 

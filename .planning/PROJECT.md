@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Raspberry Pi 4 (192.168.1.254) configured as a split-tunnel VPN gateway for a home LAN. All outbound traffic routes through AmneziaWG VPN; Russian IP ranges (fetched daily from russia.iplist.opencck.org) route directly via ISP (Keenetic). LAN devices use the RPi as their default gateway via Keenetic DHCP. Scripts and configs are managed in this local repo and deployed to the RPi via SSH/SCP.
+Raspberry Pi 4 (10.0.0.254) configured as a split-tunnel VPN gateway for a home LAN. All outbound traffic routes through AmneziaWG VPN; Russian IP ranges (fetched daily from russia.iplist.opencck.org) route directly via ISP (Keenetic). LAN devices use the RPi as their default gateway via Keenetic DHCP. Scripts and configs are managed in this local repo and deployed to the RPi via SSH/SCP.
 
 ## Core Value
 
@@ -34,8 +34,8 @@ Non-RU traffic exits through AmneziaWG VPN; RU traffic exits direct via ISP — 
 
 ## Context
 
-- Network: Keenetic router at 192.168.1.1 (PPPoE → Small Telecom ISP), LAN subnet 192.168.1.0/24
-- RPi static IP: 192.168.1.254
+- Network: Keenetic router at 10.0.0.1 (PPPoE → Инсис ISP), LAN subnet 10.0.0.0/24
+- RPi static IP: 10.0.0.254
 - VPN server: YOUR_VPN_SERVER_IP:36348 (AmneziaWG)
 - VPN client IP: 10.8.1.13/32
 - AmneziaWG config template: `amnezia.key.claude.txt` (keys redacted for repo safety; user provides real keys at deploy time)
