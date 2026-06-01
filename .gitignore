@@ -1,15 +1,18 @@
 /.idea/
 /.claude/
+.codex/
 
 # Phase 1: VPN secrets — never commit
 .env.secrets
 /awg0.conf
+src/configs/amnezia.key.txt
 
 # Phase 5: user-defined custom route overrides — never commit
 src/configs/isp-routes-custom.txt
 src/configs/vpn-routes-custom.txt
 # Phase 8: operator CIDR exclusion list — never commit
 src/configs/ru-exclude.txt
+src/configs/ru-list-exclude.txt
 
 # Python bytecode cache
 __pycache__/
@@ -17,3 +20,5 @@ __pycache__/
 
 logs
 /package.json
+
+.env

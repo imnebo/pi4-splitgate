@@ -31,6 +31,17 @@ RU CIDRs → eth0 → ISP direct (via 10.0.0.1)
 
 ## Deploy
 
+### 0. OS and network baseline
+
+Use **Raspberry Pi OS Lite 64-bit** on Raspberry Pi 4. The deploy installs AmneziaWG tools/DKMS, `dnsmasq`, `iptables-persistent`, `fake-hwclock`, systemd units, and splitgate scripts.
+
+Before deploy, make sure:
+
+- `eth0` gets the router-reserved LAN address `10.0.0.254`
+- Wi-Fi, if enabled, has lower priority than `eth0` and is only a fallback path
+- SSH key auth works
+- the SSH user has passwordless sudo
+
 ### 1. SSH alias
 
 Add to `~/.ssh/config` on your Mac:
@@ -38,7 +49,7 @@ Add to `~/.ssh/config` on your Mac:
 ```
 Host pi4
     HostName 10.0.0.254
-    User ar
+    User <user>
     IdentityFile ~/.ssh/id_ed25519
 ```
 
@@ -53,17 +64,19 @@ cp .env.secrets.example .env.secrets
 # Fill in AWG_PRIVATE_KEY, AWG_PUBLIC_KEY, AWG_PRESHARED_KEY (44-char base64 each)
 ```
 
-**AmneziaWG config template** (`src/configs/amnezia.key.template.txt`): holds server-specific obfuscation parameters (Jc, Jmin, Jmax, S1, S2, H1–H4) and the endpoint. Copy the `[Interface]` and `[Peer]` blocks from your AmneziaWG server's client config, then replace the key values with `{{PrivateKey}}`, `{{PublicKey}}`, `{{PresharedKey}}` placeholders — `deploy.sh` substitutes them at deploy time.
+**AmneziaWG config** (`src/configs/amnezia.key.txt`): local-only and gitignored. It holds the client address, `Table = off`, AWG 2.0 obfuscation parameters (`Jc`, `Jmin`, `Jmax`, `S1`-`S4`, `H1`-`H4`, optional `I1`-`I5`) and the endpoint. Copy the `[Interface]` and `[Peer]` blocks from your AmneziaWG server's client config, then replace the key values with `{{PrivateKey}}`, `{{PublicKey}}`, `{{PresharedKey}}` placeholders — `deploy.sh` substitutes them at deploy time.
 
-**Network config** (`.env`): committed to the repo, safe to edit. Update if your network differs from defaults:
+**Network config** (`.env`): local-only and gitignored. Update if your network differs from defaults:
 
 ```
-SSH_HOST="pi4"              # SSH alias for the RPi (from ~/.ssh/config)
+SSH_HOST=pi4              # SSH alias from ~/.ssh/config
 RPI_LAN_IP=10.0.0.254    # RPi LAN IP
 KEENETIC_GW=10.0.0.1     # ISP gateway (your router)
-VPN_SERVER_IP=<your-server-ip>  # AmneziaWG server IP — set in .env.secrets
 CRON_UPDATE_HOUR=5          # Hour (0–23) for daily RU list refresh
 ```
+
+`SSH_HOST` is used only by `deploy.sh` on your Mac and is not deployed to the RPi.
+`VPN_SERVER_IP` is stored in `.env.secrets`, not `.env`.
 
 **Optional — ISP-bypass custom routes** (`src/configs/isp-routes-custom.txt`): CIDRs that bypass VPN and exit via ISP, added on top of the auto-downloaded RU list. Create from example when needed:
 
@@ -106,11 +119,13 @@ bash src/deploy.sh            # deploy all files + activate routing
 bash src/deploy.sh --no-run   # deploy files only (use before tunnel is up)
 ```
 
-### 5. Bring up the tunnel
+### 5. Verify after deploy
 
 ```bash
-ssh pi4 "sudo awg-quick up awg0"   # bring up VPN tunnel (manual — not idempotent)
+ssh pi4 "systemctl is-active awg-quick@awg0 vpn-routing.service dnsmasq splitgate-watch"
 ssh pi4 "sudo awg show"            # verify peer handshake
+ssh pi4 "ip route get 8.8.8.8"     # expect: dev awg0
+ssh pi4 "ip route get 77.88.8.8"   # expect: via 10.0.0.1 dev eth0
 ```
 
 ---

@@ -3,7 +3,7 @@
 #
 # Decisions honored:
 #   D-04: SSH_HOST=pi4 via system SSH config (no hardcoded IP)
-#   D-05: SSH user 'ar' with passwordless sudo — no su or password prompts
+#   D-05: SSH user has passwordless sudo — no su or password prompts
 #   D-06: BatchMode=yes enforces SSH key auth; password fallback blocked
 #   D-07: Real VPN keys live in .env.secrets (gitignored, never committed)
 #   D-08: Variable names AWG_PRIVATE_KEY, AWG_PUBLIC_KEY, AWG_PRESHARED_KEY
@@ -14,7 +14,7 @@
 #
 # Usage:
 #   1. Copy .env.secrets.example to .env.secrets and fill in your 44-char base64 keys
-#   2. Ensure ~/.ssh/config has a 'pi4' host alias (SSH key auth, user ar)
+#   2. Ensure ~/.ssh/config has a 'pi4' host alias with SSH key auth and passwordless sudo
 #   3. Run: bash src/deploy.sh [--no-run]
 #
 # This script deploys:
@@ -36,7 +36,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ─── Configuration (D-04, D-09) ─────────────────────────────────────────────
-TEMPLATE="configs/amnezia.key.template.txt"
+TEMPLATE="configs/amnezia.key.txt"
 AWG_CONF_REMOTE="/etc/amnezia/amneziawg/awg0.conf"
 ENV_REMOTE="/etc/splitgate/vpn-gateway.env"
 INSTALLER_SCRIPT="scripts/install-awg.sh"
@@ -122,7 +122,7 @@ validate_key() {
 echo "[1/${TOTAL_STAGES}] Preflight: checking required files..."
 
 if [[ ! -f ../.env ]]; then
-    echo "ERROR: ../.env not found — this file should be committed in the repo" >&2
+    echo "ERROR: ../.env not found — create this local gitignored file from the README example" >&2
     exit 1
 fi
 if [[ ! -f ../.env.secrets ]]; then
@@ -131,7 +131,7 @@ if [[ ! -f ../.env.secrets ]]; then
     exit 1
 fi
 if [[ ! -f "$TEMPLATE" ]]; then
-    echo "ERROR: $TEMPLATE not found — AmneziaWG config template is missing" >&2
+    echo "ERROR: $TEMPLATE not found — AmneziaWG config is missing" >&2
     exit 1
 fi
 if [[ ! -f "$INSTALLER_SCRIPT" ]]; then
@@ -192,6 +192,11 @@ source ../.env
 source ../.env.secrets
 # Keys are now in memory as shell variables; never echoed or logged.
 
+if [[ -z "${SSH_HOST:-}" ]]; then
+    echo "ERROR: SSH_HOST not set in .env (expected SSH_HOST=pi4)" >&2
+    exit 1
+fi
+
 # Validate CRON_UPDATE_HOUR before it is used in Stage 15 (T-03-12: prevent injection)
 if [[ -z "${CRON_UPDATE_HOUR:-}" ]]; then
     echo "ERROR: CRON_UPDATE_HOUR not set in .env (add CRON_UPDATE_HOUR=5)" >&2
@@ -222,7 +227,7 @@ echo "[3/${TOTAL_STAGES}] Verifying SSH connectivity to ${SSH_HOST}..."
 if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$SSH_HOST" true; then
     echo "ERROR: Cannot connect to ${SSH_HOST} via SSH" >&2
     echo "       Ensure ~/.ssh/config has a 'pi4' alias with SSH key auth (D-04, D-06)" >&2
-    echo "       Run: ssh-copy-id ar@<rpi-ip>  (if key not yet installed)" >&2
+    echo "       Run: ssh-copy-id <user>@<pi4-ip>  (if key not yet installed)" >&2
     exit 1
 fi
 
@@ -284,9 +289,9 @@ echo "       awg0.conf deployed with chmod 600 + chown root:root (T-01-PERM)."
 # ─── Stage H: Deploy /etc/splitgate/vpn-gateway.env to RPi (CONF-02) ────────
 echo "[8/${TOTAL_STAGES}] Deploying vpn-gateway.env to ${SSH_HOST}:${ENV_REMOTE}..."
 
-# Build merged env: public vars from .env + VPN_SERVER_IP from .env.secrets
-# VPN_SERVER_IP is kept out of .env (gitignored secret); injected here at deploy time
-cat ../.env > "$env_merged_tmp"
+# Build merged env: public runtime vars from .env + VPN_SERVER_IP from .env.secrets.
+# SSH_HOST is Mac-only and must not be deployed to the RPi runtime env.
+awk '!/^[[:space:]]*SSH_HOST[[:space:]]*=/' ../.env > "$env_merged_tmp"
 printf 'VPN_SERVER_IP=%s\n' "${VPN_SERVER_IP}" >> "$env_merged_tmp"
 scp "$env_merged_tmp" "${SSH_HOST}:/tmp/vpn-gateway.env.tmp"
 ssh "$SSH_HOST" "sudo mv /tmp/vpn-gateway.env.tmp ${ENV_REMOTE} && \

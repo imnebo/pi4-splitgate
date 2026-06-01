@@ -6,20 +6,24 @@
 #          (or: ssh pi4 "sudo bash -s" < scripts/install-awg.sh)
 #
 # Decisions honored:
-#   D-01 — Primary install: bivlked/RomikB installer (official AmneziaWG community installer for RPi)
-#   D-02 — Fallback: pre-built .deb from AmneziaWG GitHub releases; pass URL via AWG_DEB_URL env var
-#   D-03 — Assumes RPi OS already running (Raspberry Pi OS / Debian Bookworm, arm64); no OS install step
+#   D-01 — Client-gateway install only: install AmneziaWG tools + kernel module,
+#          do not run a server provisioning installer on the RPi.
+#   D-02 — Debian 13 maps the Amnezia Ubuntu PPA to noble; Raspberry Pi 4 arm64
+#          uses linux-headers-rpi-v8 for DKMS.
+#   D-03 — Assumes RPi OS already running (Raspberry Pi OS / Debian, arm64); no OS install step.
 #
 # Threat mitigations:
-#   T-01-01 — Installer fetched over HTTPS with curl -fsSL; URL is pinned and reviewable in git
-#   T-01-02 — set -euo pipefail; no read prompts; scope limited to package install + sysctl + mkdir
+#   T-01-01 — APT repository is configured with a scoped Signed-By keyring.
+#   T-01-02 — set -euo pipefail; no read prompts; scope limited to package install + sysctl + mkdir.
 
 set -euo pipefail
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-BIVLKED_INSTALLER_URL="https://raw.githubusercontent.com/RomikB/amneziawg-install/main/amneziawg-install.sh"
 AWG_CONFIG_DIR="/etc/amnezia/amneziawg"
 SYSCTL_CONF="/etc/sysctl.d/99-vpn-gateway.conf"
+APT_KEYRING="/etc/apt/keyrings/amnezia-ppa.gpg"
+APT_SOURCE="/etc/apt/sources.list.d/amnezia-ppa.sources"
+PPA_URI="https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu"
 
 log() {
     echo "[install-awg] $*"
@@ -39,76 +43,29 @@ if command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1; then
 fi
 
 if [[ "$AWG_ALREADY_INSTALLED" == false ]]; then
-    # ─── Stage 2: Primary install path (D-01 — bivlked/RomikB installer) ────────
-    # The bivlked installer auto-detects the RPi +rpt kernel suffix and selects
-    # linux-headers-rpi-v8 (RPi 4 64-bit) instead of the generic linux-headers-arm64.
-    # This handles the PPA codename mismatch between Debian Bookworm and Ubuntu (Pitfall 3).
-    # Source: github.com/bivlked/amneziawg-installer ADVANCED.en.md (RomikB fork)
-    log "Stage 2: Primary install — bivlked/RomikB AmneziaWG installer (D-01)"
-    log "Downloading installer from: $BIVLKED_INSTALLER_URL"
+    log "Stage 2: Installing AmneziaWG client tools + DKMS module"
 
-    INSTALLER_TMP=$(mktemp /tmp/amneziawg-install.XXXXXX.sh)
-    # shellcheck disable=SC2064
-    trap "rm -f '$INSTALLER_TMP'" EXIT
+    install -d -m 0755 /etc/apt/keyrings
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates curl gpg dkms build-essential linux-headers-rpi-v8 fake-hwclock
 
-    PRIMARY_OK=true
-    if curl -fsSL "$BIVLKED_INSTALLER_URL" -o "$INSTALLER_TMP"; then
-        log "Installer downloaded; running non-interactively..."
-        # Run installer; it will auto-select prebuilt .ko or DKMS fallback for RPi arm64.
-        # Expected install time: 2-3 min (prebuilt) or 10-30 min (DKMS fallback on kernel mismatch).
-        if bash "$INSTALLER_TMP"; then
-            log "Primary install (bivlked) succeeded"
-        else
-            err "Primary install (bivlked) exited non-zero — falling back to deb path (D-02)"
-            PRIMARY_OK=false
-        fi
-    else
-        err "Failed to download bivlked installer from $BIVLKED_INSTALLER_URL — falling back to deb path (D-02)"
-        PRIMARY_OK=false
-    fi
+    log "Configuring Amnezia APT repository (${PPA_URI}, suite noble for Debian 13/RPi)..."
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x57290828" \
+        | gpg --dearmor -o "${APT_KEYRING}.tmp"
+    mv "${APT_KEYRING}.tmp" "${APT_KEYRING}"
+    chmod 0644 "${APT_KEYRING}"
 
-    rm -f "$INSTALLER_TMP"
-    trap - EXIT
+    cat > "${APT_SOURCE}" <<EOF
+Types: deb
+URIs: ${PPA_URI}
+Suites: noble
+Components: main
+Signed-By: ${APT_KEYRING}
+EOF
 
-    # ─── Stage 3: Fallback path (D-02 — pre-built .deb from GitHub releases) ────
-    # Manual fallback documented below. Use this if the bivlked installer fails.
-    #
-    # MANUAL FALLBACK INSTRUCTIONS (D-02):
-    #   1. Go to: https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/releases
-    #   2. Download the .deb matching your kernel: `uname -r` tells you the version.
-    #      For RPi 4 (64-bit) look for a deb with arm64 and linux-headers-rpi-v8 in the name.
-    #   3. Re-run this script with AWG_DEB_URL set:
-    #      AWG_DEB_URL="https://github.com/.../amneziawg_X.Y.Z_arm64.deb" sudo bash -s < install-awg.sh
-    #
-    # The fallback path executes only when AWG_DEB_URL is set AND primary failed.
-    if [[ "$PRIMARY_OK" == false ]]; then
-        if [[ -z "${AWG_DEB_URL:-}" ]]; then
-            err "Primary install failed and AWG_DEB_URL not set — see scripts/install-awg.sh fallback comments"
-            exit 2
-        fi
-
-        log "Stage 3: Fallback install — pre-built .deb from: $AWG_DEB_URL (D-02)"
-        log "Installing kernel headers for RPi arm64..."
-        apt-get update -qq
-        # RPi 4 (64-bit) requires linux-headers-rpi-v8 (not linux-headers-arm64).
-        # See RESEARCH.md Pitfall 2: wrong headers cause DKMS compilation failure.
-        apt-get install -y linux-headers-rpi-v8
-
-        log "Downloading and installing AmneziaWG .deb package..."
-        DEB_TMP=$(mktemp /tmp/amneziawg.XXXXXX.deb)
-        trap "rm -f '$DEB_TMP'" EXIT
-        if curl -fsSL "$AWG_DEB_URL" -o "$DEB_TMP"; then
-            apt-get install -y "$DEB_TMP"
-            log "Fallback .deb install succeeded"
-        else
-            err "Failed to download .deb from $AWG_DEB_URL"
-            rm -f "$DEB_TMP"
-            trap - EXIT
-            exit 3
-        fi
-        rm -f "$DEB_TMP"
-        trap - EXIT
-    fi
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y amneziawg-dkms amneziawg-tools
 fi
 
 # ─── Stage 4: Persistent IP forwarding (INST-02) ─────────────────────────────
@@ -127,6 +84,17 @@ if [[ "$IP_FWD" != "1" ]]; then
     exit 4
 fi
 log "IP forwarding confirmed: net.ipv4.ip_forward = $IP_FWD"
+
+# ─── Stage 4b: Fake hardware clock for Pi without RTC ───────────────────────
+# AWG handshakes can fail after reboot if the Pi clock jumps backwards before
+# NTP sync. fake-hwclock preserves a recent timestamp across power cycles.
+log "Stage 4b: Ensuring fake-hwclock is enabled"
+if ! dpkg -l fake-hwclock 2>/dev/null | grep -q '^ii'; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y fake-hwclock
+fi
+systemctl enable fake-hwclock-load.service fake-hwclock-save.timer >/dev/null 2>&1 || true
+fake-hwclock save || true
+log "fake-hwclock enabled and current time saved"
 
 # ─── Stage 5: Pre-create AmneziaWG config directory ──────────────────────────
 # The amneziawg-tools package may not create /etc/amnezia/amneziawg/ automatically.
@@ -171,9 +139,8 @@ if [[ -z "$AWGQ_PATH" ]]; then
 fi
 log "Binary: awg-quick -> $AWGQ_PATH"
 
-# NOTE: Tunnel bring-up is NOT performed by this script (RESEARCH.md Pitfall 5).
-# awg-quick up is NOT idempotent — it fails if the interface is already up.
-# Tunnel management belongs to post-deploy manual verification, not the installer.
+# NOTE: Tunnel bring-up is performed by deploy.sh after config deployment.
+# awg-quick up is guarded there with an existing-interface check.
 
 log "──────────────────────────────────────────────"
 log "AmneziaWG install complete. Summary:"

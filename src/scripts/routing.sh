@@ -77,6 +77,17 @@ log "  VPN_SERVER_IP: ${VPN_SERVER_IP}"
 log "  KEENETIC_GW:  ${KEENETIC_GW}"
 log "  LAN_SUBNET:   ${LAN_SUBNET}"
 
+# ─── Stage 0: Ensure firewall tooling exists ────────────────────────────────
+# Minimal Debian/Raspberry Pi OS images may not ship iptables. Install before
+# the first iptables call below; iptables-persistent is still ensured again
+# before saving rules in Stage 8.
+if ! command -v iptables >/dev/null 2>&1; then
+    log "Stage 0: iptables not found — installing iptables + iptables-persistent..."
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y iptables iptables-persistent
+    log "Stage 0: iptables installed"
+fi
+
 # ─── Stage 1: Download RU subnet list (D-03, D-04, D-05, ROUT-01) ────────────
 # D-05: skip download if --no-update flag is passed
 if [[ "$SKIP_DOWNLOAD" == true ]]; then
@@ -106,7 +117,7 @@ else
     log "Stage 1: Downloading RU subnet list"
     # T-02-01: Download to temp file first; mv to WHITE_LIST_FILE only on success.
     # This prevents a partial/corrupt download from replacing a good existing file.
-    if curl -fsSLg "${EFFECTIVE_URL}" -o "${SUBNET_TMP}"; then
+    if curl --connect-timeout 5 --max-time 20 -fsSLg "${EFFECTIVE_URL}" -o "${SUBNET_TMP}"; then
         mv "${SUBNET_TMP}" "${WHITE_LIST_FILE}"
         log "Subnet list downloaded and saved to ${WHITE_LIST_FILE}"
     else
@@ -143,14 +154,18 @@ log "Stage 3: Flushing FORWARD ACCEPT, LOG, and NAT rules (if present)..."
 # Remove old eth0 MASQUERADE without LAN exclusion (superseded by ! -d LAN variant)
 iptables -t nat -C POSTROUTING -o eth0 -j MASQUERADE 2>/dev/null && \
     iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE || true
-iptables -C FORWARD -i eth0 -j ACCEPT 2>/dev/null && \
+while iptables -C FORWARD -i eth0 -j ACCEPT 2>/dev/null; do
     iptables -D FORWARD -i eth0 -j ACCEPT || true
-iptables -C FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null && \
+done
+while iptables -C FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do
     iptables -D FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT || true
-iptables -C FORWARD -o "${VPN_IFACE}" -m state --state NEW -m limit --limit 10/min --limit-burst 20 -j LOG --log-prefix "[VPN] " --log-level 6 2>/dev/null && \
+done
+while iptables -C FORWARD -o "${VPN_IFACE}" -m state --state NEW -m limit --limit 10/min --limit-burst 20 -j LOG --log-prefix "[VPN] " --log-level 6 2>/dev/null; do
     iptables -D FORWARD -o "${VPN_IFACE}" -m state --state NEW -m limit --limit 10/min --limit-burst 20 -j LOG --log-prefix "[VPN] " --log-level 6 || true
-iptables -C FORWARD -o eth0 -m state --state NEW -m limit --limit 10/min --limit-burst 20 -j LOG --log-prefix "[ISP] " --log-level 6 2>/dev/null && \
+done
+while iptables -C FORWARD -o eth0 -m state --state NEW -m limit --limit 10/min --limit-burst 20 -j LOG --log-prefix "[ISP] " --log-level 6 2>/dev/null; do
     iptables -D FORWARD -o eth0 -m state --state NEW -m limit --limit 10/min --limit-burst 20 -j LOG --log-prefix "[ISP] " --log-level 6 || true
+done
 log "Stage 3: Flushing existing VPN routes (D-06)..."
 ip route flush dev "${VPN_IFACE}" 2>/dev/null || true
 ip route del "${VPN_SERVER_IP}/32" 2>/dev/null || true
@@ -169,7 +184,7 @@ log "Routes flushed, rebuilding..."
 # creating a routing loop that breaks the tunnel (Pitfall: tunnel loop).
 # D-01: main routing table only.
 log "Stage 4: Adding VPN server host route via ISP (ROUT-03 — loop prevention)..."
-ip route add "${VPN_SERVER_IP}/32" via "${KEENETIC_GW}"
+ip route replace "${VPN_SERVER_IP}/32" via "${KEENETIC_GW}" dev eth0
 log "Host route added: ${VPN_SERVER_IP}/32 via ${KEENETIC_GW}"
 
 # ─── Stage 5: Add RU subnet routes via ISP (ROUT-01, D-01, D-02) ─────────────
@@ -230,21 +245,21 @@ fi
 # Added AFTER host route (Stage 4) and RU routes (Stage 5) so that more-specific
 # prefixes take precedence over this catch-all default.
 log "Stage 6: Setting default route via ${VPN_IFACE} (ROUT-04)..."
-ip route add default dev "${VPN_IFACE}"
+ip route replace default dev "${VPN_IFACE}"
 log "Default route set: default dev ${VPN_IFACE}"
 
 # ─── Stage 7: iptables MASQUERADE (NAT-01, NAT-02, D-07, D-10) ──────────────
 # D-07: check before adding — no duplicate iptables rules.
-# NAT-01: MASQUERADE on awg0 (VPN-bound LAN traffic needs source NAT).
+# NAT-01: MASQUERADE on ${VPN_IFACE} (VPN-bound LAN traffic needs source NAT).
 # NAT-02: MASQUERADE on eth0 (ISP-bound RU traffic from LAN devices also needs source NAT).
 log "Stage 7: Configuring iptables MASQUERADE rules (NAT-01, NAT-02, D-07)..."
 
-# NAT-01: MASQUERADE on awg0 — VPN-bound LAN traffic (D-07 idempotency check)
-if iptables -t nat -C POSTROUTING -o awg0 -j MASQUERADE 2>/dev/null; then
-    log "MASQUERADE on awg0: already present (no change)"
+# NAT-01: MASQUERADE on ${VPN_IFACE} — VPN-bound LAN traffic (D-07 idempotency check)
+if iptables -t nat -C POSTROUTING -o "${VPN_IFACE}" -j MASQUERADE 2>/dev/null; then
+    log "MASQUERADE on ${VPN_IFACE}: already present (no change)"
 else
-    iptables -t nat -A POSTROUTING -o awg0 -j MASQUERADE
-    log "MASQUERADE on awg0: added"
+    iptables -t nat -A POSTROUTING -o "${VPN_IFACE}" -j MASQUERADE
+    log "MASQUERADE on ${VPN_IFACE}: added"
 fi
 
 # NAT-02: MASQUERADE on eth0 — ISP-bound RU traffic, excluding local LAN.

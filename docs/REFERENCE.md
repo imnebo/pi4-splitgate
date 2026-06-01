@@ -6,24 +6,43 @@
 
 ## Environment Variables
 
-Source is `.env` in this repo. All except `SSH_HOST` are deployed to `/etc/splitgate/vpn-gateway.env` on the RPi.
+Source is local `.env` in this repo. `.env` is gitignored; all variables except `SSH_HOST` are deployed to `/etc/splitgate/vpn-gateway.env` on the RPi.
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `SSH_HOST` | `pi4` | SSH alias for the RPi — used by `deploy.sh` on macOS only; not deployed to RPi |
-| `RPI_LAN_IP` | `10.0.0.254` | RPi LAN IP address |
-| `KEENETIC_GW` | `10.0.0.1` | ISP gateway (your router) |
+| `SSH_HOST` | `pi4` | SSH alias from `~/.ssh/config` — used by `deploy.sh` on macOS only; not deployed to RPi |
+| `RPI_LAN_IP` | `<pi4-ip>` | RPi LAN IP address |
+| `KEENETIC_GW` | `<router-ip>` | ISP gateway (your router) |
 | `VPN_SERVER_IP` | *(in `.env.secrets`)* | AmneziaWG server endpoint IP — kept secret, not committed |
 | `VPN_IFACE` | `awg0` | VPN tunnel interface name |
 | `LAN_SUBNET` | `10.0.0.0/24` | Local LAN subnet |
 | `RU_SUBNET_URL` | `https://russia.iplist.opencck.org/?format=text&data=cidr4` | RU CIDR list source |
 | `CRON_UPDATE_HOUR` | `5` | Hour (0-23) for daily subnet refresh cron |
 
+## AmneziaWG Client Config
+
+`src/configs/amnezia.key.txt` is a local client config for a self-hosted AmneziaWG server. It should contain AWG 2.0 client parameters from the server-generated profile: `Address`, `Jc`, `Jmin`, `Jmax`, `S1`-`S4`, `H1`-`H4`, optional non-empty `I1`-`I5`, `PublicKey`, `PresharedKey`, `AllowedIPs`, `Endpoint`, and `PersistentKeepalive`.
+
+Keep `Table = off` in `[Interface]`. Without it, `awg-quick` can install its own default route from `AllowedIPs = 0.0.0.0/0`; this project needs `routing.sh` to install the default route only after the VPN server host route and RU bypass routes are in place.
+
+---
+
+## OS Baseline
+
+Recommended OS for Raspberry Pi 4 is **Raspberry Pi OS Lite 64-bit**. The deploy expects Debian/Raspberry Pi OS arm64 with NetworkManager, systemd, apt, and passwordless sudo for the SSH user.
+
+Validated runtime baseline:
+
+- Debian GNU/Linux 13 (trixie), Raspberry Pi kernel `6.18.29+rpt-rpi-v8`
+- `eth0` on `<pi4-ip>` with a lower route metric than Wi-Fi
+- `fake-hwclock` installed and enabled, so AmneziaWG handshakes survive reboot on a Pi without RTC
+- `amneziawg-dkms` built for the active Raspberry Pi kernel
+
 ---
 
 ## Deploy Stage Groups
 
-`deploy.sh` runs 26 stages from your Mac via SSH. Full deploy: `bash src/deploy.sh`.
+`deploy.sh` runs 28 stages from your Mac via SSH. Full deploy: `bash src/deploy.sh`.
 
 | Group | Stages | What happens |
 |-------|--------|--------------|
@@ -59,17 +78,17 @@ ssh pi4 "ip route get 8.8.8.8"
 
 # 3. Russian IP (77.88.8.8 — Yandex) must route via ISP
 ssh pi4 "ip route get 77.88.8.8"
-# Expected output contains: via 10.0.0.1
+# Expected output contains: via <router-ip>
 
 # 4. VPN server IP must route via ISP (loop prevention)
 ssh pi4 "ip route get <VPN_SERVER_IP>"
-# Expected output contains: via 10.0.0.1
+# Expected output contains: via <router-ip>
 ```
 
 ### iptables LOG rules check
 
 ```bash
-ssh pi4 "sudo iptables -L FORWARD -n -v | grep LOG"
+ssh pi4 "sudo iptables-save | grep -c 'LOG --log-prefix'"
 # Expected: two LOG rules — [VPN] on awg0, [ISP] on eth0
 ```
 
@@ -86,12 +105,12 @@ Example output:
 ```
 TIMESTAMP            SRC-IP             DST-IP             DOMAIN                                   PATH
 -------------------- ------------------ ------------------ ---------------------------------------- ----
-May 23 11:36:21      10.0.0.175      17.248.209.64      apple.com                                VPN
-May 23 11:36:22      10.0.0.175      77.88.8.8          yandex.ru                                ISP
-May 23 11:36:23      10.0.0.100      104.64.0.0         store.steampowered.com                   VPN
+May 23 11:36:21      <lan-device-ip>  17.248.209.64      apple.com                                VPN
+May 23 11:36:22      <lan-device-ip>  77.88.8.8          yandex.ru                                ISP
+May 23 11:36:23      <lan-device-ip>  104.64.0.0         store.steampowered.com                   VPN
 ```
 
-If the DOMAIN column shows raw IPs, set router DNS to `10.0.0.254` (see README → Deploy → Router setup).
+If the DOMAIN column shows raw IPs, set router DNS to `<pi4-ip>` (see README → Deploy → Router setup).
 
 ### Autostart checks
 
@@ -121,7 +140,7 @@ Must be run as `sudo` — reads kernel journal and dnsmasq logs.
 ```bash
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh"
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100"
-ssh pi4 "sudo /etc/splitgate/vpn-status.sh --device=10.0.0.50 --filter=steam"
+ssh pi4 "sudo /etc/splitgate/vpn-status.sh --device=<lan-device-ip> --filter=steam"
 
 # Show top-20 orgs by connection count, split by VPN/ISP:
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --summary"
@@ -140,7 +159,7 @@ stalls, the line flushes after 6 seconds. Repeated IPs print immediately from ca
 
 ```bash
 ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py"
-ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --src 10.0.0.50 --tag VPN"
+ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --src <lan-device-ip> --tag VPN"
 ssh pi4 "sudo python3 /etc/splitgate/watch-routes.py --no-asn"   # disable org enrichment
 ```
 
@@ -164,7 +183,7 @@ ssh pi4 "sudo journalctl -t vpn-routes -n 5 --no-pager"
 
 ### DNS note
 
-`dnsmasq` on the RPi (`10.0.0.254`) must be set as the DNS server in your router for domain
+`dnsmasq` on the RPi (`<pi4-ip>`) must be set as the DNS server in your router for domain
 resolution to work in `vpn-status.sh`. Without it, all queries go directly to the upstream DNS
 resolver, bypassing dnsmasq's query log, and the DOMAIN column will show raw IPs.
 
@@ -181,12 +200,8 @@ Two files let you override the auto-downloaded RU list without modifying it:
 
 If the same CIDR appears in both files, `vpn-routes-custom.txt` wins.
 
-**Current state (Phase 13):** `isp-routes-custom.txt` ships with 11 active RU /24 CIDRs pre-populated
-(Selectel ×2, MIRAN-AS/Keenetic captive portals, RU-JSCIOT/Keenetic captive, SonicDuo, SOVAM, MegaFon,
-Raiffeisenbank, VimpelCom/Corbina, cloud.example.com RU ASN) — these were confirmed RU but previously
-routing via VPN. `vpn-routes-custom.txt` includes a commented candidate block for non-RU false-positives
-(Cherry Servers LT, Google PoPs, Cloudflare, CloudFront, EC2, Akamai, Azure EU) — uncomment entries
-as needed when those services fail under ISP routing.
+The local override files are gitignored and optional. Start from the `.example` files only when a real
+routing exception is found in `splitgate status` or `splitgate watch`.
 
 ---
 
@@ -239,7 +254,7 @@ Stage 21 SCPs the file to `/etc/splitgate/isp-routes-custom.txt`. `routing.sh` S
 
 ```bash
 ssh pi4 "ip route get <your-exception-ip>"
-# Expected output contains: via 10.0.0.1
+# Expected output contains: via <router-ip>
 
 ssh pi4 "sudo /etc/splitgate/vpn-status.sh --via=isp"
 # Your exception traffic should appear here
@@ -381,7 +396,7 @@ ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 - Removes MASQUERADE iptables rules on `awg0` + `eth0`
 - Removes iptables FORWARD ACCEPT and LOG rules
 - Removes `/etc/cron.d/vpn-routes`
-- Restores default route via `KEENETIC_GW` (`10.0.0.1`)
+- Restores default route via `KEENETIC_GW` (`<router-ip>`)
 - Removes `/usr/local/bin/splitgate`
 - Removes `/etc/splitgate/` tree entirely — scripts, data files, env
 
@@ -393,10 +408,10 @@ ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
 
 ### After rollback
 
-Revert the router DHCP gateway back to `10.0.0.1`:
+Revert the router DHCP gateway back to `<router-ip>`:
 
-1. `http://10.0.0.1` → Home network → Segments → Default → IP parameters
-2. Clear the Gateway address field (or set to `10.0.0.1`) → Save
+1. `http://<router-ip>` → Home network → Segments → Default → IP parameters
+2. Clear the Gateway address field (or set to `<router-ip>`) → Save
 
 ### Re-activate after rollback
 
@@ -418,7 +433,7 @@ bash src/deploy.sh
 ├── asn-lookup.py
 ├── vpn-gateway.env
 ├── white-list.txt              (generated at runtime)
-├── isp-routes-custom.txt       (optional — ISP-bypass custom routes; 11 active RU CIDRs pre-populated)
+├── isp-routes-custom.txt       (optional — ISP-bypass custom routes)
 ├── vpn-routes-custom.txt       (optional — VPN-force custom routes; commented candidate block included)
 ├── ru-list-exclude.txt         (optional — server-side RU list exclusions)
 └── logs/
@@ -448,17 +463,17 @@ Files that stay at system locations (required by their consuming daemon):
 
 **Synopsis:** `bash src/deploy.sh [--no-run]`
 
-Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`). 28 stages.
+Runs from your Mac. Connects to the RPi via `SSH_HOST=pi4` (from `.env`, resolved by `~/.ssh/config`). 28 stages.
 Sources `.env` and `.env.secrets`; validates keys before any remote operation.
 
 | Flag | Description |
 |------|-------------|
-| `--no-run` | Deploy all files but skip `routing.sh` activation. Use for first-time deploys before the tunnel is up, or when testing config changes without activating routes. |
+| `--no-run` | Deploy all files but skip `awg-quick` bring-up and `routing.sh` activation. Use when testing config changes without activating routes. |
 
 ```bash
-bash src/deploy.sh              # full deploy + activate routing
-bash src/deploy.sh --no-run     # deploy only — activate routing manually later
-ssh pi4 "sudo /etc/splitgate/routing.sh"   # activate after --no-run deploy
+bash src/deploy.sh              # full deploy + bring up awg0 + activate routing
+bash src/deploy.sh --no-run     # deploy only — activate manually later
+ssh pi4 "sudo awg-quick up awg0 && sudo /etc/splitgate/routing.sh"
 ```
 
 ---
@@ -469,10 +484,10 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"   # activate after --no-run deploy
 
 Flush-and-rebuild split-tunnel routing. Idempotent — safe to re-run at any time.
 
-On each run: downloads RU CIDRs → flushes existing VPN routes → adds VPN server host route →
+On each run: downloads RU CIDRs with bounded curl timeouts and fallback to the existing list → flushes existing VPN routes → adds/replaces the VPN server host route →
 adds RU CIDR routes via `KEENETIC_GW` → loads `isp-routes-custom.txt` (Stage 5b, if present) →
 loads `vpn-routes-custom.txt` (Stage 5c, if present — overrides any ISP routes for those CIDRs) →
-sets default route via `awg0` → configures MASQUERADE and iptables LOG rules → saves via `iptables-save`.
+sets/replaces default route via `awg0` → removes duplicate legacy FORWARD/LOG rules → configures MASQUERADE and exactly two iptables LOG rules → saves via `iptables-save`.
 
 | Flag | Description |
 |------|-------------|
@@ -483,7 +498,7 @@ ssh pi4 "sudo /etc/splitgate/routing.sh"             # full run with download
 ssh pi4 "sudo /etc/splitgate/routing.sh --no-update" # rebuild without download
 ssh pi4 "ip route show default"     # expect: default dev awg0
 ssh pi4 "ip route get 8.8.8.8"      # expect: dev awg0
-ssh pi4 "ip route get 77.88.8.8"    # expect: via 10.0.0.1
+ssh pi4 "ip route get 77.88.8.8"    # expect: via <router-ip>
 ```
 
 ---
@@ -513,9 +528,9 @@ All flags compose freely.
 ```bash
 sudo /etc/splitgate/vpn-status.sh
 sudo /etc/splitgate/vpn-status.sh --via=vpn --last=100
-sudo /etc/splitgate/vpn-status.sh --device=10.0.0.50 --filter=steam
+sudo /etc/splitgate/vpn-status.sh --device=<lan-device-ip> --filter=steam
 sudo /etc/splitgate/vpn-status.sh --summary
-sudo /etc/splitgate/vpn-status.sh --summary --device=10.0.0.50 --via=vpn
+sudo /etc/splitgate/vpn-status.sh --summary --device=<lan-device-ip> --via=vpn
 sudo /etc/splitgate/vpn-status.sh --last=200   # extend window when output is empty
 ```
 
@@ -529,7 +544,7 @@ No flags. Fully idempotent — safe to re-run.
 
 ```bash
 ssh pi4 "sudo /etc/splitgate/vpn-rollback.sh"
-ssh pi4 "ip route show default"  # expect: default via 10.0.0.1
+ssh pi4 "ip route show default"  # expect: default via <router-ip>
 bash src/deploy.sh               # re-activate after rollback
 ```
 
@@ -577,8 +592,8 @@ In `--daemon` mode a connection status field (✓/✗) is added to each line aft
 
 Output format in daemon mode:
 ```
-2026-05-29T10:14:00 [ISP] ✓ 10.0.0.237 → yandex.ru TCP:443 | TELETECH, RU
-2026-05-29T10:14:05 [ISP] ✗ 10.0.0.237 → github.com TCP:443 | FASTLY, US
+2026-05-29T10:14:00 [ISP] ✓ <lan-device-ip> → yandex.ru TCP:443 | TELETECH, RU
+2026-05-29T10:14:05 [ISP] ✗ <lan-device-ip> → github.com TCP:443 | FASTLY, US
 ```
 
 Log files: `/etc/splitgate/logs/watch-YYYY-MM-DD.log`. A new dated file is opened at midnight.
@@ -596,7 +611,7 @@ Requires Python 3 (stdlib only — no pip dependencies).
 
 ```bash
 sudo python3 /etc/splitgate/watch-routes.py
-sudo python3 /etc/splitgate/watch-routes.py --src 10.0.0.50 --tag VPN
+sudo python3 /etc/splitgate/watch-routes.py --src <lan-device-ip> --tag VPN
 sudo python3 /etc/splitgate/watch-routes.py --no-dns
 sudo python3 /etc/splitgate/watch-routes.py --tag ISP --no-dns --no-asn
 # Start as daemon (normally done by systemd, but can run manually):
@@ -609,7 +624,7 @@ sudo python3 /etc/splitgate/watch-routes.py --daemon
 grep "[ISP] ✗" /etc/splitgate/logs/watch-$(date +%F).log
 
 # All traffic from a specific device
-grep "10.0.0.50" /etc/splitgate/logs/watch-$(date +%F).log
+grep "<lan-device-ip>" /etc/splitgate/logs/watch-$(date +%F).log
 ```
 
 ---
@@ -693,9 +708,9 @@ Fix: Re-run `sudo /etc/splitgate/routing.sh` — Stage 7b adds LOG rules before 
 
 **Router web UI / app becomes inaccessible from LAN devices**
 
-Symptom: Cannot reach `http://10.0.0.1` from LAN devices after RPi is configured as gateway.
+Symptom: Cannot reach `http://<router-ip>` from LAN devices after RPi is configured as gateway.
 
-Cause: An unconstrained MASQUERADE rule on `eth0` rewrites source IPs for all outbound traffic — including intra-LAN traffic to `10.0.0.1`. Router sees all requests from `10.0.0.254` and blocks them.
+Cause: An unconstrained MASQUERADE rule on `eth0` rewrites source IPs for all outbound traffic — including intra-LAN traffic to `<router-ip>`. Router sees all requests from `<pi4-ip>` and blocks them.
 
 Fix: `routing.sh` Stage 7 uses `! -d LAN_SUBNET` in the eth0 MASQUERADE rule. Re-run `sudo /etc/splitgate/routing.sh` to restore the correct rule.
 
@@ -715,7 +730,7 @@ Fix: Re-run `bash src/deploy.sh` — Stage 18 always installs `dnsmasq` before S
 
 Symptom: `sudo awg-quick up awg0` errors with "RTNETLINK answers: File exists".
 
-Cause: `awg-quick up` is not idempotent. `deploy.sh` does not bring up the tunnel for this reason.
+Cause: `awg-quick up` is not idempotent. `deploy.sh` guards this by checking whether `awg0` already exists before running `awg-quick up`.
 
 Fix:
 ```bash
@@ -734,7 +749,7 @@ Cause A: dnsmasq is not configured as the DNS server in your router — queries 
 
 Cause B: LAN device has not renewed its DHCP lease since the router gateway was changed.
 
-Fix: In your router web UI: set Gateway address to `10.0.0.254` and DNS server to `10.0.0.254`. Then renew the DHCP lease on the LAN device (disconnect/reconnect Wi-Fi, or `ipconfig /renew` on Windows).
+Fix: In your router web UI: set Gateway address to `<pi4-ip>` and DNS server to `<pi4-ip>`. Then renew the DHCP lease on the LAN device (disconnect/reconnect Wi-Fi, or `ipconfig /renew` on Windows).
 
 ---
 
@@ -744,7 +759,7 @@ Symptom: DOMAIN column shows IP addresses instead of domain names.
 
 Cause: dnsmasq is not the DNS server for LAN devices — DNS queries bypass dnsmasq's query log.
 
-Fix: Set your router DNS server to `10.0.0.254` (see README → Deploy → Router setup).
+Fix: Set your router DNS server to `<pi4-ip>` (see README → Deploy → Router setup).
 
 ---
 
@@ -752,7 +767,7 @@ Fix: Set your router DNS server to `10.0.0.254` (see README → Deploy → Route
 
 Symptom: VPN routing breaks after the router reboots or eth0 link drops. `ip route show | wc -l` drops to ~2. `ip route get 8.8.8.8` no longer shows `dev awg0`.
 
-Cause: When the router reboots, eth0 link drops. NetworkManager flushes all eth0 routes on the link-down event — including all ~1360 RU CIDR routes and the VPN server host route. When eth0 comes back up, NM only restores the local link route. Without the VPN server host route (`<VPN_SERVER_IP>/32 via 10.0.0.1`), traffic to the VPN endpoint resolves via `awg0`, creating a routing loop.
+Cause: When the router reboots, eth0 link drops. NetworkManager flushes all eth0 routes on the link-down event — including all ~1360 RU CIDR routes and the VPN server host route. When eth0 comes back up, NM only restores the local link route. Without the VPN server host route (`<VPN_SERVER_IP>/32 via <router-ip>`), traffic to the VPN endpoint resolves via `awg0`, creating a routing loop.
 
 Fix: `deploy.sh` Stage 23 deploys `/etc/NetworkManager/dispatcher.d/10-vpn-routes` — an NM dispatcher script that restores routes by running `routing.sh --no-update` when `eth0 up` is detected.
 
@@ -765,29 +780,3 @@ Manual recovery if routes are currently missing:
 ```bash
 ssh pi4 "sudo /etc/splitgate/routing.sh"
 ```
-
----
-
-## Development Phases
-
-| Phase | Name | Goal | Link |
-|-------|------|------|------|
-| 1 | Foundation & Config | AmneziaWG installed, config deployed, tunnel operational | [.planning/phases/01-foundation-config/](../.planning/phases/01-foundation-config/) |
-| 2 | Routing & NAT | Split-tunnel routing active, LAN devices NATed | [.planning/phases/02-routing-nat/](../.planning/phases/02-routing-nat/) |
-| 3 | Autostart, Cron & Rollback | Survives reboots, daily refresh, one-command rollback | [.planning/phases/03-autostart-cron-rollback/](../.planning/phases/03-autostart-cron-rollback/) |
-| 4 | Traffic Logging & Visibility | Per-connection VPN/ISP routing decisions logged and queryable | [.planning/phases/04-traffic-logging-visibility-vpn-isp/](../.planning/phases/04-traffic-logging-visibility-vpn-isp/) |
-| 5 | Custom Route Exceptions | Per-CIDR ISP-bypass exceptions on top of auto-downloaded RU list | [.planning/phases/05-custom-route-exceptions-ip/](../.planning/phases/05-custom-route-exceptions-ip/) |
-| 6 | Documentation | Ops runbook: deploy, verify, rollback, add exceptions | [.planning/phases/06-documentation/](../.planning/phases/06-documentation/) |
-| 7 | ASN Enrichment & Traffic Attribution | Enrich vpn-status.sh and watch-routes.py with ISP/org via Team Cymru | [.planning/phases/07-asn-enrichment-traffic-attribution/](../.planning/phases/07-asn-enrichment-traffic-attribution/) |
-| 8 | RU IP List Exclusion Filter | Exclude specific CIDRs from the downloaded RU list so they route via VPN | [.planning/phases/08-ru-ip-list-exclusion-filter/](../.planning/phases/08-ru-ip-list-exclusion-filter/) |
-| 10 | Splitgate Ergonomics | Consolidated RPi files under `/etc/splitgate/`, added `splitgate` dispatcher CLI, log rotation | [.planning/phases/10-splitgate-ergonomics/](../.planning/phases/10-splitgate-ergonomics/) |
-| 11 | README Documentation Overhaul | Trim README to 3 quick-start sections; all technical detail in docs/REFERENCE.md | [.planning/phases/11-readme-documentation/](../.planning/phases/11-readme-documentation/) |
-| 12 | Buffered ASN Output | Buffer watch-routes.py lines until ASN lookup completes; flush after 6 s on stall | [.planning/phases/12-buffered-asn-output/](../.planning/phases/12-buffered-asn-output/) |
-| 13 | Log Monitoring, Routing Refinement & Daemon | splitgate-watch.service daemon with ✓/✗ conntrack status; install.log rename; ru-list-exclude.txt rename; 11 RU CIDRs added to isp-routes-custom.txt | [.planning/phases/13-log-monitoring-daemon/](../.planning/phases/13-log-monitoring-daemon/) |
-
-### Quick Tasks
-
-| ID | Description | Commit |
-|----|-------------|--------|
-| 260521-jex | Add `scripts/watch-routes.py` — real-time iptables log enricher with rDNS caching | cf6bafa |
-| 260523-nmr | Fix NM carrier-change route flush — add NM dispatcher (`10-vpn-routes`) + fallback rebuild in `update-vpn-routes` | 847ff31 |

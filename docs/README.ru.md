@@ -31,6 +31,17 @@ RU-подсети → eth0 → провайдер напрямую (через 1
 
 ## Установка
 
+### 0. ОС и базовая сеть
+
+Используйте **Raspberry Pi OS Lite 64-bit** на Raspberry Pi 4. Деплой устанавливает AmneziaWG tools/DKMS, `dnsmasq`, `iptables-persistent`, `fake-hwclock`, systemd-юниты и скрипты splitgate.
+
+Перед деплоем проверьте:
+
+- `eth0` получает закреплённый на роутере LAN-адрес `10.0.0.254`
+- Wi-Fi, если включён, имеет меньший приоритет, чем `eth0`, и остаётся только резервным доступом
+- SSH по ключу работает
+- у SSH-пользователя настроен passwordless sudo
+
 ### 1. SSH-псевдоним
 
 Добавьте в `~/.ssh/config` на вашем Mac:
@@ -38,7 +49,7 @@ RU-подсети → eth0 → провайдер напрямую (через 1
 ```
 Host pi4
     HostName 10.0.0.254
-    User ar
+    User <user>
     IdentityFile ~/.ssh/id_ed25519
 ```
 
@@ -53,17 +64,19 @@ cp .env.secrets.example .env.secrets
 # Заполните AWG_PRIVATE_KEY, AWG_PUBLIC_KEY, AWG_PRESHARED_KEY (44-символьный base64 каждый)
 ```
 
-**Шаблон конфигурации AmneziaWG** (`src/configs/amnezia.key.template.txt`): содержит специфичные для сервера параметры обфускации (Jc, Jmin, Jmax, S1, S2, H1–H4) и адрес endpoint. Скопируйте блоки `[Interface]` и `[Peer]` из клиентской конфигурации вашего AmneziaWG-сервера, затем замените значения ключей на плейсхолдеры `{{PrivateKey}}`, `{{PublicKey}}`, `{{PresharedKey}}` — `deploy.sh` подставит их во время деплоя.
+**Конфигурация AmneziaWG** (`src/configs/amnezia.key.txt`): локальный файл, добавлен в `.gitignore`. Содержит клиентский адрес, `Table = off`, параметры обфускации AWG 2.0 (`Jc`, `Jmin`, `Jmax`, `S1`-`S4`, `H1`-`H4`, опционально `I1`-`I5`) и адрес endpoint. Скопируйте блоки `[Interface]` и `[Peer]` из клиентской конфигурации вашего AmneziaWG-сервера, затем замените значения ключей на плейсхолдеры `{{PrivateKey}}`, `{{PublicKey}}`, `{{PresharedKey}}` — `deploy.sh` подставит их во время деплоя.
 
-**Конфигурация сети** (`.env`): зафиксирована в репозитории, безопасно редактировать. Обновите, если ваша сеть отличается от настроек по умолчанию:
+**Конфигурация сети** (`.env`): локальный файл, добавлен в `.gitignore`. Обновите, если ваша сеть отличается от настроек по умолчанию:
 
 ```
-SSH_HOST="pi4"              # SSH-псевдоним RPi (из ~/.ssh/config)
+SSH_HOST=pi4              # SSH-псевдоним из ~/.ssh/config
 RPI_LAN_IP=10.0.0.254    # IP-адрес RPi в LAN
 KEENETIC_GW=10.0.0.1     # Шлюз провайдера (ваш роутер)
-VPN_SERVER_IP=<your-server-ip>  # IP-адрес AmneziaWG-сервера — задаётся в .env.secrets
 CRON_UPDATE_HOUR=5          # Час (0–23) ежедневного обновления списка RU-адресов
 ```
+
+`SSH_HOST` используется только `deploy.sh` на вашем Mac и не разворачивается на RPi.
+`VPN_SERVER_IP` хранится в `.env.secrets`, а не в `.env`.
 
 **Опционально — кастомные маршруты через провайдера** (`src/configs/isp-routes-custom.txt`): IP-диапазоны, которые всегда выходят через провайдера, минуя VPN, — добавляются поверх автозагружаемого списка RU. Создайте из примера при необходимости:
 
@@ -106,11 +119,13 @@ bash src/deploy.sh            # развернуть всё + активиров
 bash src/deploy.sh --no-run   # только развернуть файлы (используйте до поднятия туннеля)
 ```
 
-### 5. Поднимите туннель
+### 5. Проверьте после деплоя
 
 ```bash
-ssh pi4 "sudo awg-quick up awg0"   # поднять VPN-туннель (ручной шаг — не идемпотентен)
+ssh pi4 "systemctl is-active awg-quick@awg0 vpn-routing.service dnsmasq splitgate-watch"
 ssh pi4 "sudo awg show"            # проверить рукопожатие с пиром
+ssh pi4 "ip route get 8.8.8.8"     # ожидается: dev awg0
+ssh pi4 "ip route get 77.88.8.8"   # ожидается: via 10.0.0.1 dev eth0
 ```
 
 ---

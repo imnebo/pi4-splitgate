@@ -31,7 +31,10 @@
 set -euo pipefail
 
 # ─── Logging (D-09: file-append + echo to stdout for operator visibility) ──────
-log() { echo "[$(date '+%F %T')] [vpn-rollback] $*" | tee -a /etc/splitgate/logs/install.log; }
+LOG_FILE="/etc/splitgate/logs/install.log"
+log() {
+    echo "[$(date '+%F %T')] [vpn-rollback] $*" | tee -a "${LOG_FILE}"
+}
 
 # ─── Guard: source env file (D-18) ───────────────────────────────────────────
 if [[ ! -f /etc/splitgate/vpn-gateway.env ]]; then
@@ -41,6 +44,7 @@ fi
 # shellcheck source=/dev/null
 source /etc/splitgate/vpn-gateway.env
 
+mkdir -p "$(dirname "${LOG_FILE}")"
 log "Starting VPN gateway rollback..."
 
 # ─── Step 1a: Stop + disable splitgate-watch.service (Phase 13 D-10) ─────────
@@ -138,7 +142,7 @@ log "Removed /usr/local/bin/splitgate"
 rm -f /etc/logrotate.d/vpn-gateway
 log "Removed /etc/logrotate.d/vpn-gateway"
 rm -rf /etc/splitgate
-log "Removed /etc/splitgate/ (entire tree)"
+echo "[$(date '+%F %T')] [vpn-rollback] Removed /etc/splitgate/ (entire tree)"
 
 # ─── Step 8: Final state summary to stdout (D-09) ────────────────────────────
 echo ""

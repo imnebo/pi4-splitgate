@@ -219,11 +219,11 @@ if [[ "${SUMMARY}" == "true" ]]; then
         [[ -n "${FILTER}" && "${_entry}" != *"${FILTER}"* ]] && continue
         [[ -n "${DEVICE}" && "${_src}" != "${DEVICE}" ]] && continue
         if [[ -n "${VIA}" ]]; then
-            [[ "${VIA}" == "VPN" && "${_dec}" != "[VPN]" ]] && continue
-            [[ "${VIA}" == "ISP" && "${_dec}" != "[ISP]" ]] && continue
+            [[ "${VIA}" == "VPN" && "${_dec}" != "VPN" ]] && continue
+            [[ "${VIA}" == "ISP" && "${_dec}" != "ISP" ]] && continue
         fi
         _org_key="${org_map[${_dst}]:-unknown}"
-        if [[ "${_dec}" == "[VPN]" ]]; then
+        if [[ "${_dec}" == "VPN" ]]; then
             _vpn_cnt["${_org_key}"]=$(( ${_vpn_cnt["${_org_key}"]:-0} + 1 ))
         else
             _isp_cnt["${_org_key}"]=$(( ${_isp_cnt["${_org_key}"]:-0} + 1 ))
