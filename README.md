@@ -38,7 +38,7 @@ Use **Raspberry Pi OS Lite 64-bit** on Raspberry Pi 4. The deploy installs Amnez
 Before deploy, make sure:
 
 - `eth0` gets the router-reserved LAN address `10.0.0.254`
-- Wi-Fi, if enabled, has lower priority than `eth0` and is only a fallback path
+- after router DHCP points LAN clients to `10.0.0.254`, keep the RPi on wired `eth0`; disable Wi-Fi on the same LAN to avoid ARP conflicts
 - SSH key auth works
 - the SSH user has passwordless sudo
 

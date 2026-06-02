@@ -22,3 +22,5 @@ logs
 /package.json
 
 .env
+
+src/configs/vpn-routes-custom.txt

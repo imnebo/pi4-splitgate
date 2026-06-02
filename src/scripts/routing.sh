@@ -226,16 +226,41 @@ fi
 # for each CIDR and add it via awg0. This overrides the RU list and isp-routes-custom.txt.
 # Absence of the file is a normal state — skip silently with a log message (D-05).
 VPN_FORCED=0
+VPN_FORCE_REMOVED=0
 if [[ -f "${VPN_FORCE_FILE}" ]]; then
     log "Stage 5c: Loading VPN-force CIDRs from ${VPN_FORCE_FILE}..."
     while IFS= read -r subnet; do
         [[ -z "${subnet}" ]] && continue
         [[ "${subnet}" =~ ^[[:space:]]*# ]] && continue
+
+        # Remove more-specific ISP routes inside the forced CIDR. Otherwise a
+        # host route or /24 via KEENETIC_GW still wins over a broader /16 awg0 route.
+        while IFS= read -r isp_route; do
+            [[ -z "${isp_route}" ]] && continue
+            ip route del "${isp_route}" via "${KEENETIC_GW}" 2>/dev/null || true
+            (( VPN_FORCE_REMOVED++ )) || true
+        done < <(
+            ip route show via "${KEENETIC_GW}" 2>/dev/null | awk '{print $1}' |
+                python3 -c 'import ipaddress, sys
+forced = ipaddress.ip_network(sys.argv[1], strict=False)
+for line in sys.stdin:
+    route = line.strip()
+    if not route or route == "default":
+        continue
+    try:
+        network = ipaddress.ip_network(route, strict=False)
+    except ValueError:
+        continue
+    if network.subnet_of(forced):
+        print(route)
+' "${subnet}"
+        )
+
         ip route del "${subnet}" 2>/dev/null || true
         ip route add "${subnet}" dev "${VPN_IFACE}" 2>/dev/null || true
         (( VPN_FORCED++ )) || true
     done < "${VPN_FORCE_FILE}"
-    log "VPN-force routes added: ${VPN_FORCED} routes via ${VPN_IFACE}"
+    log "VPN-force routes added: ${VPN_FORCED} routes via ${VPN_IFACE}; removed ${VPN_FORCE_REMOVED} covered ISP routes"
 else
     log "Stage 5c: ${VPN_FORCE_FILE} not found — no VPN-force routes loaded (D-05)"
 fi

@@ -34,7 +34,7 @@ Recommended OS for Raspberry Pi 4 is **Raspberry Pi OS Lite 64-bit**. The deploy
 Validated runtime baseline:
 
 - Debian GNU/Linux 13 (trixie), Raspberry Pi kernel `6.18.29+rpt-rpi-v8`
-- `eth0` on `<pi4-ip>` with a lower route metric than Wi-Fi
+- `eth0` on `<pi4-ip>`; Wi-Fi on the same LAN disabled after router DHCP gateway/DNS points clients to the RPi
 - `fake-hwclock` installed and enabled, so AmneziaWG handshakes survive reboot on a Pi without RTC
 - `amneziawg-dkms` built for the active Raspberry Pi kernel
 
@@ -303,7 +303,7 @@ Note: `src/configs/vpn-routes-custom.txt` is gitignored — never committed.
 bash src/deploy.sh
 ```
 
-Stage 21b SCPs the file to `/etc/splitgate/vpn-routes-custom.txt`. `routing.sh` Stage 5c deletes any existing ISP route for each CIDR and adds it via `awg0`.
+Stage 21b SCPs the file to `/etc/splitgate/vpn-routes-custom.txt`. `routing.sh` Stage 5c deletes ISP routes covered by each VPN-force CIDR, including more-specific host routes, and adds the forced CIDR via `awg0`.
 
 **Step 5: Verify**
 
@@ -486,7 +486,7 @@ Flush-and-rebuild split-tunnel routing. Idempotent — safe to re-run at any tim
 
 On each run: downloads RU CIDRs with bounded curl timeouts and fallback to the existing list → flushes existing VPN routes → adds/replaces the VPN server host route →
 adds RU CIDR routes via `KEENETIC_GW` → loads `isp-routes-custom.txt` (Stage 5b, if present) →
-loads `vpn-routes-custom.txt` (Stage 5c, if present — overrides any ISP routes for those CIDRs) →
+loads `vpn-routes-custom.txt` (Stage 5c, if present — removes covered ISP routes and overrides them via VPN) →
 sets/replaces default route via `awg0` → removes duplicate legacy FORWARD/LOG rules → configures MASQUERADE and exactly two iptables LOG rules → saves via `iptables-save`.
 
 | Flag | Description |
@@ -760,6 +760,23 @@ Symptom: DOMAIN column shows IP addresses instead of domain names.
 Cause: dnsmasq is not the DNS server for LAN devices — DNS queries bypass dnsmasq's query log.
 
 Fix: Set your router DNS server to `<pi4-ip>` (see README → Deploy → Router setup).
+
+---
+
+**Keenetic reports an ARP network conflict for the RPi Wi-Fi IP**
+
+Symptom: Keenetic logs a warning like `network conflict: hosts <eth-mac> and <wifi-mac> have the same IPv4 address <wifi-ip>`.
+
+Cause: The RPi has `eth0` and `wlan0` active in the same LAN. Linux can answer ARP for the Wi-Fi address through the Ethernet MAC, so the router sees the same IPv4 address behind two MAC addresses. After router DHCP gateway/DNS is changed to the RPi, the Pi can also receive its own address as DHCP gateway if `eth0` remains DHCP-managed.
+
+Fix: Keep the gateway Pi wired and make `eth0` static. Disable Wi-Fi autoconnect on the same LAN.
+
+```bash
+ssh pi4 "sudo nmcli connection modify netplan-eth0 ipv4.method manual ipv4.addresses <pi4-ip>/24 ipv4.gateway <router-ip> ipv4.dns <router-ip>"
+ssh pi4 "sudo nmcli connection modify netplan-wlan0-nebo connection.autoconnect no"
+ssh pi4 "sudo nmcli connection down netplan-wlan0-nebo || true"
+ssh pi4 "sudo nmcli connection up netplan-eth0 && sudo /etc/splitgate/routing.sh --no-update"
+```
 
 ---
 
